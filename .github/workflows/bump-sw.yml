@@ -1,0 +1,23 @@
+name: Bump SW Cache Version
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - 'sw.js'
+jobs:
+  bump:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Bump version timestamp
+        run: |
+          TS=$(date +%Y%m%d%H%M%S)
+          sed -i "s/const CACHE_VERSION = '[^']*'/const CACHE_VERSION = '$TS'/" sw.js
+      - name: Commit
+        run: |
+          git config user.email "bot@github.com"
+          git config user.name "SW-Bump-Bot"
+          git add sw.js
+          git diff --cached --quiet && echo "No change" || git commit -m "chore: bump SW cache version $TS" && git push
