@@ -1,0 +1,7 @@
+Live Deployment URLs:
+
+Inspection URL: [https://vercel.com/neilachanane-3324s-projects/vendeo-pos/CibhwL5UcESYknKUwtRjWHCPmdxz](https://vercel.com/neilachanane-3324s-projects/vendeo-pos/CibhwL5UcESYknKUwtRjWHCPmdxz)
+
+Unique Deployment URL: [https://vendeo-p6nc4bhzh-neilachanane-3324s-projects.vercel.app](https://vendeo-p6nc4bhzh-neilachanane-3324s-projects.vercel.app)
+
+Production Domain: [https://vendeo-pos.vercel.app](https://vendeo-pos.vercel.app)

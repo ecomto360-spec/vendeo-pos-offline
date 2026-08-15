@@ -1,0 +1,6 @@
+{
+  "name": "Vendeo POS",
+  "description": "Solution SaaS de Gestion de Magasin, Point de Vente (POS), Stocks et Facturation",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
