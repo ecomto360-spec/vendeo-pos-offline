@@ -1,11 +1,11 @@
 name: Bump SW Cache Version
+
 on:
   push:
     branches: [main]
     paths-ignore:
-      - 'sw.js'
-      - '**/sw.js'
       - '.github/**'
+
 jobs:
   bump:
     runs-on: ubuntu-latest
@@ -15,14 +15,11 @@ jobs:
       - uses: actions/checkout@v4
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-      - name: Bump SW version
+      - name: Find and bump SW version
         run: |
-          SW_PATH=$(find . -name "sw.js" -not -path "./.github/*" | head -1)
-          if [ -z "$SW_PATH" ]; then
-            echo "sw.js introuvable dans le repo"
-            exit 1
-          fi
-          echo "Trouvé: $SW_PATH"
+          SW_PATH=$(find . -name "sw.js" -not -path "./.git/*" | head -1)
+          echo "sw.js trouvé à: $SW_PATH"
+          if [ -z "$SW_PATH" ]; then echo "ERREUR: sw.js absent" && exit 1; fi
           TS=$(date +%Y%m%d%H%M%S)
           sed -i "s/const CACHE_VERSION = '[^']*'/const CACHE_VERSION = '$TS'/" "$SW_PATH"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
