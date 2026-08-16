@@ -18,7 +18,8 @@ import {
   Calculator,
   Wallet,
   CheckCircle2,
-  Lock
+  Lock,
+  X
 } from 'lucide-react';
 import { NavigationPage, Language } from '../types';
 import { getLicenseStatus, LicenseStatus } from '../lib/license';
@@ -33,6 +34,8 @@ interface SidebarProps {
   collapsed?: boolean;
   currentLanguage?: Language;
   onLogout?: () => void;
+  isOpen?: boolean;
+  onClose?: () => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -42,6 +45,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onViewChange,
   currentLanguage = 'fr',
   onLogout,
+  isOpen = false,
+  onClose,
 }) => {
   const { t } = useLanguage();
   const [licenseStatus, setLicenseStatus] = useState<LicenseStatus>(getLicenseStatus());
@@ -78,6 +83,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
     if (onViewChange) {
       onViewChange(page);
     }
+    if (onClose) {
+      onClose();
+    }
   };
 
   const isSelected = (page: string) => activePage === page;
@@ -90,8 +98,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
     }
   `;
 
-  return (
-    <aside className="w-64 bg-slate-50/90 dark:bg-slate-900/90 border-r border-slate-200/80 dark:border-slate-800 flex flex-col justify-between shrink-0 h-screen sticky top-0 select-none overflow-y-auto custom-scrollbar">
+  const sidebarContent = (
+    <div className="flex flex-col justify-between h-full overflow-y-auto custom-scrollbar">
       {/* App Header & Branding */}
       <div>
         <div className="p-4 flex items-center justify-between border-b border-slate-200/60 dark:border-slate-800/80">
@@ -126,6 +134,18 @@ export const Sidebar: React.FC<SidebarProps> = ({
               )}
             </div>
           </div>
+
+          {/* Close button on mobile */}
+          {onClose && (
+            <button
+              type="button"
+              onClick={onClose}
+              className="lg:hidden p-2 rounded-xl text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+              title="Fermer le menu"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          )}
         </div>
 
         {/* Navigation Sections */}
@@ -316,6 +336,30 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </button>
         </div>
       </div>
-    </aside>
+    </div>
+  );
+
+  return (
+    <>
+      {/* Desktop Persistent Sidebar (Hidden on mobile < lg) */}
+      <aside className="hidden lg:flex w-64 bg-slate-50/90 dark:bg-slate-900/90 border-r border-slate-200/80 dark:border-slate-800 flex-col justify-between shrink-0 h-screen sticky top-0 select-none">
+        {sidebarContent}
+      </aside>
+
+      {/* Mobile Drawer Overlay */}
+      {isOpen && (
+        <div className="fixed inset-0 z-50 lg:hidden flex">
+          {/* Backdrop */}
+          <div 
+            className="fixed inset-0 bg-black/60 backdrop-blur-xs transition-opacity duration-300"
+            onClick={onClose}
+          />
+          {/* Drawer Panel */}
+          <aside className="relative w-72 max-w-[85vw] bg-slate-50 dark:bg-slate-900 h-full shadow-2xl z-10 flex flex-col justify-between border-r border-slate-200 dark:border-slate-800 animate-slide-right select-none">
+            {sidebarContent}
+          </aside>
+        </div>
+      )}
+    </>
   );
 };

@@ -5,6 +5,7 @@ import {
   Minus,
   Trash2,
   User,
+  UserPlus,
   CheckCircle2,
   ShoppingBag,
   AlertCircle,
@@ -28,16 +29,36 @@ import {
   Tag,
   PackagePlus,
   ShoppingCart,
+  Receipt,
   FileText,
+  FileCheck,
+  ClipboardList,
   Building,
   Palette,
   Package,
   Copy,
   PlusCircle,
-  Columns, Layers, X,
+  Columns,
+  Layers,
+  Save,
+  Info,
+  Calendar,
 } from 'lucide-react';
-import { Product, Sale, Customer, CashSession, ProductPriceExtra, ProductVariant, ProductOptionGroup } from '../../types';
+import {
+  Product,
+  Sale,
+  Customer,
+  CashSession,
+  ProductPriceExtra,
+  ProductVariant,
+  ProductOptionGroup,
+  ExtraBarcode,
+  BonCommande,
+  ProformaInvoice,
+} from '../../types';
 import { useLanguage } from '../../lib/i18n';
+import { CreatableSelect } from '../common/CreatableSelect';
+import { printReceipt } from '../../lib/receiptPrinter';
 
 interface PointDeVenteViewProps {
   products: Product[];
@@ -45,10 +66,14 @@ interface PointDeVenteViewProps {
   categories?: string[];
   activeSession?: CashSession | null;
   sales?: Sale[];
+  orders?: BonCommande[];
+  proformas?: ProformaInvoice[];
   onOpenSessionRequested?: () => void;
   onCompleteSale: (sale: Omit<Sale, 'id'>) => void;
   onAddProduct?: (product: Product) => void;
   onGoToJournalVentes?: () => void;
+  onAddOrder?: (order: BonCommande) => void;
+  onAddProforma?: (proforma: ProformaInvoice) => void;
 }
 
 interface CartItem {
@@ -72,10 +97,14 @@ export const PointDeVenteView: React.FC<PointDeVenteViewProps> = ({
   categories = ['Boissons', 'Produits Laitiers', 'Épicerie', 'Hygiène', 'Nettoyage'],
   activeSession,
   sales = [],
+  orders = [],
+  proformas = [],
   onOpenSessionRequested,
   onCompleteSale,
   onAddProduct,
   onGoToJournalVentes,
+  onAddOrder,
+  onAddProforma,
 }) => {
   const { t, isRTL } = useLanguage();
 
@@ -118,6 +147,148 @@ export const PointDeVenteView: React.FC<PointDeVenteViewProps> = ({
   const [showDiscountModal, setShowDiscountModal] = useState(false);
   const [showCheckoutModal, setShowCheckoutModal] = useState(false);
 
+  // Auto-print mode state (F5 toggle)
+  const [isAutoPrintEnabled, setIsAutoPrintEnabled] = useState<boolean>(() => {
+    const saved = localStorage.getItem('pos_auto_print_enabled');
+    return saved !== null ? saved === 'true' : true;
+  });
+
+  const toggleAutoPrint = () => {
+    setIsAutoPrintEnabled((prev) => {
+      const next = !prev;
+      localStorage.setItem('pos_auto_print_enabled', next ? 'true' : 'false');
+      setToastMessage(
+        next
+          ? 'Impression automatique du ticket (F5) ACTIVÉE'
+          : 'Impression automatique du ticket (F5) DÉSACTIVÉE'
+      );
+      return next;
+    });
+  };
+
+  // Order (Bon de Commande) modal state
+  const [showOrderModal, setShowOrderModal] = useState(false);
+  const [orderDeliveryDate, setOrderDeliveryDate] = useState(
+    new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+  );
+  const [orderDeposit, setOrderDeposit] = useState('0.00');
+  const [orderDepositMethod, setOrderDepositMethod] = useState('Espèces (Cash)');
+  const [orderNotes, setOrderNotes] = useState('');
+  const [orderReserveStock, setOrderReserveStock] = useState(true);
+
+  // Proforma invoice modal state
+  const [showProformaModal, setShowProformaModal] = useState(false);
+  const [proformaValidityDate, setProformaValidityDate] = useState(
+    new Date(Date.now() + 15 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+  );
+  const [proformaNotes, setProformaNotes] = useState('');
+
+  const handleOpenOrderModal = () => {
+    if (cart.length === 0) {
+      setToastMessage("Veuillez d'abord sélectionner des produits dans le panier pour créer un bon de commande.");
+      return;
+    }
+    setShowOrderModal(true);
+  };
+
+  const handleSaveOrder = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (cart.length === 0) return;
+
+    const depositVal = parseFloat(orderDeposit) || 0;
+    const orderId = `BC-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`;
+
+    const newOrder: BonCommande = {
+      id: orderId,
+      date: new Date().toLocaleDateString('fr-FR') + ' ' + new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }),
+      dateLivraisonPrevue: orderDeliveryDate,
+      clientNom: selectedCustomer,
+      items: cart.map((i) => ({
+        productId: i.product.id,
+        nom: i.product.nom,
+        prixUnitaire: i.product.prixVente,
+        quantite: i.qty,
+        total: i.product.prixVente * i.qty,
+      })),
+      total: totalCart,
+      acompte: depositVal,
+      reste: Math.max(0, totalCart - depositVal),
+      statut: 'en_attente',
+      remarques: `${orderNotes}${orderDepositMethod ? ` [Mode d'acompte: ${orderDepositMethod}]` : ''}${orderReserveStock ? ' [Stock réservé]' : ''}`,
+    };
+
+    if (onAddOrder) {
+      onAddOrder(newOrder);
+    } else {
+      try {
+        const stored = JSON.parse(localStorage.getItem('orders') || '[]');
+        localStorage.setItem('orders', JSON.stringify([newOrder, ...stored]));
+      } catch {
+        // ignore
+      }
+    }
+
+    setShowOrderModal(false);
+    clearCart();
+    setOrderDeposit('0.00');
+    setOrderNotes('');
+    setToastMessage(`Bon de commande ${orderId} enregistré avec succès (${totalCart.toFixed(2)} DA) !`);
+  };
+
+  const handleOpenProformaModal = () => {
+    if (cart.length === 0) {
+      setToastMessage("Veuillez d'abord sélectionner des produits dans le panier pour créer une facture pro-forma.");
+      return;
+    }
+    setShowProformaModal(true);
+  };
+
+  const handleSaveProforma = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (cart.length === 0) return;
+
+    const proformaId = `PRO-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`;
+    const totalTTC = totalCart;
+    const totalHT = Math.round((totalTTC / 1.19) * 100) / 100;
+    const tvaMontant = Math.round((totalTTC - totalHT) * 100) / 100;
+
+    const newProforma: ProformaInvoice = {
+      id: proformaId,
+      date: new Date().toLocaleDateString('fr-FR') + ' ' + new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }),
+      dateValidite: proformaValidityDate,
+      clientNom: selectedCustomer,
+      items: cart.map((i) => ({
+        productId: i.product.id,
+        nom: i.product.nom,
+        prixUnitaire: i.product.prixVente,
+        quantite: i.qty,
+        total: i.product.prixVente * i.qty,
+      })),
+      totalHT,
+      tvaRate: 19,
+      tvaMontant,
+      totalTTC,
+      statut: 'en_attente',
+      remarques: proformaNotes,
+    };
+
+    if (onAddProforma) {
+      onAddProforma(newProforma);
+    } else {
+      try {
+        const stored = JSON.parse(localStorage.getItem('proformas') || '[]');
+        localStorage.setItem('proformas', JSON.stringify([newProforma, ...stored]));
+      } catch {
+        // ignore
+      }
+    }
+
+    setShowProformaModal(false);
+    clearCart();
+    setProformaNotes('');
+    setToastMessage(`Facture Pro-forma ${proformaId} enregistrée avec succès (${totalTTC.toFixed(2)} DA) !`);
+  };
+
   // Free product form state (F8)
   const [freeProductName, setFreeProductName] = useState('');
   const [freeProductSalePrice, setFreeProductSalePrice] = useState('');
@@ -127,13 +298,102 @@ export const PointDeVenteView: React.FC<PointDeVenteViewProps> = ({
   const [addProductTab, setAddProductTab] = useState<'base' | 'props' | 'variants'>('base');
   const [newProdName, setNewProdName] = useState('');
   const [newProdBarcode, setNewProdBarcode] = useState('');
+  const [newProdExtraBarcodes, setNewProdExtraBarcodes] = useState<ExtraBarcode[]>([]);
   const [newProdCategory, setNewProdCategory] = useState(categories[0] || 'Épicerie');
-  const [newProdInitialQty, setNewProdInitialQty] = useState('10');
-  const [newProdCostPrice, setNewProdCostPrice] = useState('100');
+  const [newProdFamily, setNewProdFamily] = useState('');
+  const [newProdSupplier, setNewProdSupplier] = useState('');
+  const [newProdMinStock, setNewProdMinStock] = useState('5');
+  const [newProdShelf, setNewProdShelf] = useState('');
+  const [newProdDescription, setNewProdDescription] = useState('');
+  const [newProdImage, setNewProdImage] = useState('');
+  const [newProdInitialQty, setNewProdInitialQty] = useState('0');
+  const [newProdCostPrice, setNewProdCostPrice] = useState('0');
   const [newProdMargin, setNewProdMargin] = useState(20);
-  const [newProdSalePrice, setNewProdSalePrice] = useState('120');
+  const [newProdSalePrice, setNewProdSalePrice] = useState('0');
   const [newProdWholesalePrice, setNewProdWholesalePrice] = useState('');
   const [newProdExpiry, setNewProdExpiry] = useState('');
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (toastMessage) {
+      const timer = setTimeout(() => {
+        setToastMessage(null);
+      }, 4000);
+      return () => clearTimeout(timer);
+    }
+  }, [toastMessage]);
+
+  // Print Barcode Modal State
+  const [showPrintModal, setShowPrintModal] = useState(false);
+  const [printBarcode, setPrintBarcode] = useState('');
+  const [printProductName, setPrintProductName] = useState('');
+  const [printPriceType, setPrintPriceType] = useState('Détail');
+  const [printPrice, setPrintPrice] = useState('0');
+  const [printLabelCount, setPrintLabelCount] = useState(1);
+  const [printLabelSize, setPrintLabelSize] = useState('50 × 30 mm');
+  const [autoHeight, setAutoHeight] = useState(true);
+  const [labelContent, setLabelContent] = useState({
+    storeName: false,
+    productName: true,
+    price: false,
+    priceType: false,
+    barcodeNumber: true,
+    variants: false,
+    discount: false,
+  });
+
+  const openPrintBarcodeModal = (code: string, pName?: string, priceType: string = 'Détail', priceVal?: number | string) => {
+    const nameToUse = pName !== undefined ? pName : newProdName;
+    if (!nameToUse || !nameToUse.trim()) {
+      setToastMessage("Veuillez d'abord saisir un nom de produit.");
+      return;
+    }
+    setPrintBarcode(code || newProdBarcode || `2026${Math.floor(10000000 + Math.random() * 90000000)}`);
+    setPrintProductName(nameToUse.trim());
+    setPrintPriceType(priceType || 'Détail');
+    const priceToUse = priceVal !== undefined ? priceVal.toString() : (priceType === 'Gros' && newProdWholesalePrice ? newProdWholesalePrice : newProdSalePrice);
+    setPrintPrice(priceToUse || '0');
+    setShowPrintModal(true);
+  };
+
+  const generateNewProdBarcode = () => {
+    setNewProdBarcode(`2026${Math.floor(10000000 + Math.random() * 90000000)}`);
+  };
+
+  const handleOpenAddProductModal = () => {
+    setAddProductTab('base');
+    setNewProdName('');
+    setNewProdBarcode(`2026${Math.floor(10000000 + Math.random() * 90000000)}`);
+    setNewProdExtraBarcodes([]);
+    setNewProdCategory(categories[0] || '');
+    setNewProdFamily('');
+    setNewProdSupplier('');
+    setNewProdMinStock('5');
+    setNewProdShelf('');
+    setNewProdDescription('');
+    setNewProdImage('');
+    setNewProdInitialQty('0');
+    setNewProdCostPrice('0');
+    setNewProdMargin(20);
+    setNewProdSalePrice('0');
+    setNewProdWholesalePrice('');
+    setNewProdExpiry('');
+    setNewProdUniteMesure('');
+    setNewProdPoidsVolume('');
+    setNewProdCouleur('');
+    setNewProdUniteGros('');
+    setNewProdQuantiteBaseGros('');
+    setNewProdPrixSupplementaires([]);
+    setNewProdActiverVariantes(false);
+    setNewProdGroupesOptions([]);
+    setNewProdVariantes([]);
+    setShowAddProductModal(true);
+  };
+
+  const handleAddExtraBarcode = () => {
+    const newCode = Math.floor(100000000000 + Math.random() * 900000000000).toString();
+    setNewProdExtraBarcodes([...newProdExtraBarcodes, { codeBarre: newCode, typePrix: 'Détail' }]);
+  };
 
   // New fields for props and variants
   const [newProdUniteMesure, setNewProdUniteMesure] = useState('');
@@ -288,14 +548,21 @@ export const PointDeVenteView: React.FC<PointDeVenteViewProps> = ({
 
     const createdProd: Product = {
       id: `p-${Date.now()}`,
-      codeBarre: newProdBarcode || `61300${Math.floor(100000 + Math.random() * 900000)}`,
-      nom: newProdName,
-      categorie: newProdCategory,
+      codeBarre: newProdBarcode.trim() || `61300${Math.floor(100000 + Math.random() * 900000)}`,
+      codesBarresSupp: newProdExtraBarcodes.map((b) => b.codeBarre),
+      codesBarresSuppList: newProdExtraBarcodes,
+      nom: newProdName.trim(),
+      categorie: newProdCategory.trim() || 'Général',
+      famille: newProdFamily.trim(),
+      fournisseurNom: newProdSupplier.trim(),
+      emplacement: newProdShelf.trim(),
+      description: newProdDescription.trim(),
+      image: newProdImage || undefined,
       prixAchat: parseFloat(newProdCostPrice) || 0,
       prixVente: parseFloat(newProdSalePrice) || 0,
       prixVenteGros: newProdWholesalePrice ? parseFloat(newProdWholesalePrice) : undefined,
       quantite: parseInt(newProdInitialQty) || 0,
-      minStock: 5,
+      minStock: parseInt(newProdMinStock) || 5,
       datePeremption: newProdExpiry || undefined,
       
       // New fields
@@ -318,8 +585,18 @@ export const PointDeVenteView: React.FC<PointDeVenteViewProps> = ({
     // Reset form
     setNewProdName('');
     setNewProdBarcode('');
+    setNewProdExtraBarcodes([]);
+    setNewProdFamily('');
+    setNewProdSupplier('');
+    setNewProdMinStock('5');
+    setNewProdShelf('');
+    setNewProdDescription('');
+    setNewProdImage('');
+    setNewProdInitialQty('10');
     setNewProdCostPrice('100');
     setNewProdSalePrice('120');
+    setNewProdWholesalePrice('');
+    setNewProdExpiry('');
     
     setNewProdUniteMesure('');
     setNewProdPoidsVolume('');
@@ -380,17 +657,33 @@ export const PointDeVenteView: React.FC<PointDeVenteViewProps> = ({
   const handleFinalizeSale = () => {
     const paid = parseFloat(amountPaid) || (paymentMethod === 'credit' ? 0 : Math.abs(totalCart));
     const reste = Math.max(0, Math.abs(totalCart) - paid);
+    const saleDate = new Date().toLocaleDateString('fr-FR') + ' ' + new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+    const saleId = `${new Date().getFullYear()}${String(sales.length + 1).padStart(4, '0')}`;
+
+    const currentSaleItems = cart.map((i) => ({
+      productId: i.product.id,
+      nom: i.product.nom,
+      prixUnitaire: isReturnMode ? -i.product.prixVente : i.product.prixVente,
+      quantite: i.qty,
+      total: (isReturnMode ? -i.product.prixVente : i.product.prixVente) * i.qty,
+    }));
+
+    const printableData = {
+      id: saleId,
+      date: saleDate,
+      clientNom: selectedCustomer,
+      items: currentSaleItems,
+      total: totalCart,
+      montantPaye: paid,
+      reste,
+      methodePaiement: paymentMethod === 'cash' ? 'Espèces' : paymentMethod === 'card' ? 'Carte Bancaire' : 'À Crédit',
+      session: activeSession?.id || 'Session Active',
+    };
 
     onCompleteSale({
-      date: new Date().toLocaleDateString('fr-FR') + ' ' + new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }),
+      date: saleDate,
       clientNom: selectedCustomer,
-      items: cart.map((i) => ({
-        productId: i.product.id,
-        nom: i.product.nom,
-        prixUnitaire: isReturnMode ? -i.product.prixVente : i.product.prixVente,
-        quantite: i.qty,
-        total: (isReturnMode ? -i.product.prixVente : i.product.prixVente) * i.qty,
-      })),
+      items: currentSaleItems,
       total: totalCart,
       methodePaiement: paymentMethod,
       statut: paid >= Math.abs(totalCart) ? 'paye' : paid > 0 ? 'partiel' : 'non_paye',
@@ -404,6 +697,16 @@ export const PointDeVenteView: React.FC<PointDeVenteViewProps> = ({
     setAmountPaid('');
     setCompletedSaleSuccess(true);
     setTimeout(() => setCompletedSaleSuccess(false), 3000);
+
+    // Impression automatique selon l'état de F5
+    if (isAutoPrintEnabled) {
+      setToastMessage('Vente enregistrée avec succès. Impression du ticket de caisse...');
+      setTimeout(() => {
+        printReceipt(printableData);
+      }, 150);
+    } else {
+      setToastMessage('Vente enregistrée avec succès (Impression ticket désactivée).');
+    }
   };
 
   // Keyboard Shortcuts Listener
@@ -421,13 +724,13 @@ export const PointDeVenteView: React.FC<PointDeVenteViewProps> = ({
         handleSuspendCart();
       } else if (e.key === 'F3') {
         e.preventDefault();
-        setShowRecentSalesModal(true);
+        setShowDraftsModal(true);
       } else if (e.key === 'F4') {
         e.preventDefault();
         clearCart();
       } else if (e.key === 'F5') {
         e.preventDefault();
-        setShowPrintCenterModal(true);
+        toggleAutoPrint();
       } else if (e.key === 'F8') {
         e.preventDefault();
         setShowFreeProductModal(true);
@@ -436,7 +739,7 @@ export const PointDeVenteView: React.FC<PointDeVenteViewProps> = ({
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [cart]);
+  }, [cart, isAutoPrintEnabled]);
 
   return (
     <div
@@ -667,8 +970,8 @@ export const PointDeVenteView: React.FC<PointDeVenteViewProps> = ({
           {/* Add Product Button */}
           <button
             type="button"
-            onClick={() => setShowAddProductModal(true)}
-            className="flex items-center gap-1.5 px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-extrabold shadow-sm transition-all"
+            onClick={handleOpenAddProductModal}
+            className="flex items-center gap-1.5 px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-extrabold shadow-sm transition-all cursor-pointer"
           >
             <Plus className="w-4 h-4" />
             <span>{t('pos.addProduct', 'Ajouter un produit')}</span>
@@ -724,49 +1027,104 @@ export const PointDeVenteView: React.FC<PointDeVenteViewProps> = ({
               </p>
             </div>
           ) : viewMode === 'grid' ? (
-            <div className="flex-1 overflow-y-auto grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-3 pr-1 custom-scrollbar">
-              {filteredProducts.map((p) => (
-                <button
-                  key={p.id}
-                  type="button"
-                  onClick={() => addToCart(p)}
-                  className="p-3.5 bg-slate-50/80 dark:bg-slate-900/50 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 shadow-2xs hover:border-blue-500 dark:hover:border-blue-400 hover:shadow-md transition-all text-left flex flex-col justify-between space-y-2 group relative overflow-hidden"
-                >
-                  {showImages && (
-                    <div className="w-full h-20 bg-slate-100 dark:bg-slate-800 rounded-xl overflow-hidden flex items-center justify-center mb-1">
-                      {p.image ? (
-                        <img src={p.image} alt={p.nom} className="w-full h-full object-cover" />
-                      ) : (
-                        <ImageIcon className="w-8 h-8 text-slate-300 dark:text-slate-600" />
-                      )}
-                    </div>
-                  )}
+            <div className="flex-1 flex flex-col justify-between overflow-hidden">
+              <div className="flex-1 overflow-y-auto grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-3.5 pr-1 custom-scrollbar content-start items-start auto-rows-max">
+                {filteredProducts.map((p) => {
+                  const lotsCount = p.lots && p.lots.length > 0 ? p.lots.length : 1;
+                  const hasVariants = p.variantes && p.variantes.length > 0;
+                  const variantsCount = hasVariants ? p.variantes!.length : 0;
+                  const isLowStock = p.quantite <= (p.minStock || 5);
 
-                  <div>
-                    <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400 block mb-0.5">
-                      {p.categorie}
-                    </span>
-                    <h4 className="font-bold text-slate-900 dark:text-white text-xs sm:text-sm line-clamp-2 group-hover:text-blue-600 transition-colors">
-                      {p.nom}
-                    </h4>
-                  </div>
-
-                  <div className="flex items-center justify-between pt-2 border-t border-slate-200/60 dark:border-slate-700/60">
-                    <span className="text-sm font-black text-blue-600 dark:text-blue-400">
-                      {p.prixVente.toLocaleString()} DA
-                    </span>
-                    <span
-                      className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                        p.quantite <= p.minStock
-                          ? 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300'
-                          : 'bg-slate-200/70 text-slate-600 dark:bg-slate-800 dark:text-slate-300'
-                      }`}
+                  return (
+                    <button
+                      key={p.id}
+                      type="button"
+                      onClick={() => addToCart(p)}
+                      className="w-full bg-white dark:bg-slate-800 rounded-2xl border border-slate-200/90 dark:border-slate-700/80 shadow-xs hover:shadow-md hover:border-blue-500/80 dark:hover:border-blue-400/80 transition-all text-left flex flex-col group overflow-hidden relative cursor-pointer"
                     >
-                      Stock: {p.quantite}
-                    </span>
-                  </div>
+                      {/* Top Image Section - 100% Edge to Edge with NO margin/padding */}
+                      <div className="relative w-full h-40 sm:h-44 xl:h-48 overflow-hidden flex items-center justify-center bg-slate-100 dark:bg-slate-900">
+                        {/* Floating Quantity Pill (Matching Screenshot Top-Left) */}
+                        <div className="absolute top-2 left-2 bg-white/95 dark:bg-slate-900/95 backdrop-blur-xs px-2.5 py-0.5 rounded-full shadow-xs border border-slate-200/80 dark:border-slate-700/80 flex items-center gap-1.5 z-10">
+                          <span className={`w-2 h-2 rounded-full shrink-0 ${isLowStock ? 'bg-amber-500' : 'bg-emerald-500'}`} />
+                          <span className="text-[11px] font-bold text-slate-700 dark:text-slate-200 whitespace-nowrap">
+                            {p.quantite} À Vendre
+                          </span>
+                        </div>
+
+                        {/* Low stock badge (Matching Screenshot Top-Right "(Faible)") */}
+                        {isLowStock && (
+                          <div className="absolute top-0 right-0 bg-amber-500 text-white text-[11px] font-bold px-2.5 py-0.5 rounded-bl-xl shadow-xs z-10">
+                            (Faible)
+                          </div>
+                        )}
+
+                        {p.image ? (
+                          <img
+                            src={p.image}
+                            alt={p.nom}
+                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                            referrerPolicy="no-referrer"
+                          />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-slate-100 to-slate-200 dark:from-slate-800 dark:to-slate-900">
+                            <Package className="w-12 h-12 text-slate-300 dark:text-slate-600" />
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Card Body (Matching Screenshot Typography & Hierarchy) */}
+                      <div className="p-3 sm:p-3.5 pt-2.5 flex flex-col space-y-2">
+                        {/* Centered Product Title & Subtitle */}
+                        <div className="text-center space-y-0.5">
+                          <div className="flex items-center justify-center gap-1.5">
+                            <h4 className="font-extrabold text-slate-900 dark:text-white text-[14px] sm:text-[15px] tracking-tight truncate group-hover:text-blue-600 transition-colors">
+                              {p.nom}
+                            </h4>
+                            {hasVariants && (
+                              <span className="px-1.5 py-0.2 rounded bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 font-bold text-[10px] shrink-0">
+                                {variantsCount}
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-[11px] font-medium text-slate-400 dark:text-slate-500 truncate">
+                            {lotsCount} lots disponibles à la vente
+                          </p>
+                        </div>
+
+                        {/* Price Line (Left Aligned, exact same line, no uppercase, matching screenshot) */}
+                        <div className="pt-1 flex items-baseline gap-1.5 text-left whitespace-nowrap overflow-hidden">
+                          <span className="text-[18px] sm:text-[19px] font-black text-blue-600 dark:text-blue-400 leading-none shrink-0">
+                            {Number(p.prixVente).toFixed(2)}
+                          </span>
+                          <span className="text-[11px] font-semibold text-slate-400 dark:text-slate-500 whitespace-nowrap">
+                            DA / À Vendre
+                          </span>
+                        </div>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Bottom Pagination Footer */}
+              <div className="pt-3.5 flex items-center justify-between text-xs text-slate-400 font-medium border-t border-slate-100 dark:border-slate-700/60 mt-2 shrink-0">
+                <button
+                  type="button"
+                  className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors cursor-pointer"
+                >
+                  Précédent
                 </button>
-              ))}
+                <span className="text-slate-500 dark:text-slate-400 font-bold text-[11px]">
+                  Page 1 sur 1
+                </span>
+                <button
+                  type="button"
+                  className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors cursor-pointer"
+                >
+                  Suivant
+                </button>
+              </div>
             </div>
           ) : (
             /* List Mode */
@@ -801,16 +1159,16 @@ export const PointDeVenteView: React.FC<PointDeVenteViewProps> = ({
       {/* RIGHT COLUMN: Panier / Cart Panel */}
       <div className="w-full lg:w-[420px] bg-white dark:bg-slate-800/90 rounded-3xl border border-slate-200/80 dark:border-slate-700/80 p-4 sm:p-5 shadow-sm flex flex-col justify-between shrink-0 overflow-hidden">
         <div className="space-y-3.5 flex-1 flex flex-col overflow-hidden">
-          {/* Customer Selection Bar */}
-          <div className="flex items-center gap-2 bg-slate-50 dark:bg-slate-900/80 p-2.5 rounded-2xl border border-slate-200/80 dark:border-slate-700">
-            <User className="w-4 h-4 text-slate-400 ml-1 shrink-0" />
+          {/* Customer Selection / Search Bar matching screenshot */}
+          <div className="flex items-center gap-2 bg-emerald-50/30 dark:bg-slate-900/80 px-3 py-2.5 rounded-2xl border border-emerald-300/70 dark:border-slate-700 shadow-2xs">
+            <UserPlus className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
             <select
               value={selectedCustomer}
               onChange={(e) => setSelectedCustomer(e.target.value)}
-              className="w-full bg-transparent text-xs font-bold text-slate-800 dark:text-slate-200 focus:outline-none cursor-pointer"
+              className="w-full bg-transparent text-xs font-bold text-slate-700 dark:text-slate-200 focus:outline-none cursor-pointer"
             >
               <option value="Client Passager" className="bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100">
-                Client Passager (Comptant)
+                Rechercher un client par nom ou ID...
               </option>
               {customers.map((c) => (
                 <option key={c.id} value={c.nom} className="bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100">
@@ -818,6 +1176,7 @@ export const PointDeVenteView: React.FC<PointDeVenteViewProps> = ({
                 </option>
               ))}
             </select>
+            <Search className="w-4 h-4 text-slate-400 shrink-0" />
           </div>
 
           {/* Return Mode Banner inside Cart */}
@@ -931,10 +1290,11 @@ export const PointDeVenteView: React.FC<PointDeVenteViewProps> = ({
               type="button"
               onClick={clearCart}
               title="Annuler (F4)"
-              className="p-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 hover:border-red-400 rounded-xl flex flex-col items-center justify-center gap-0.5 text-red-600 dark:text-red-400 transition-all"
+              className="p-2.5 bg-white dark:bg-slate-800 border border-slate-200/90 dark:border-slate-700/90 hover:border-red-400 rounded-2xl flex flex-col items-center justify-center gap-0.5 text-red-600 dark:text-red-400 transition-all cursor-pointer shadow-2xs"
             >
-              <Trash2 className="w-4 h-4" />
-              <span className="text-[9px] font-extrabold">Annuler <span className="text-[8px] opacity-75">F4</span></span>
+              <Trash2 className="w-4 h-4 text-red-500" />
+              <span className="text-[10px] font-extrabold text-red-600">Annuler</span>
+              <span className="text-[9px] font-bold text-red-400">F4</span>
             </button>
 
             <button
@@ -942,40 +1302,61 @@ export const PointDeVenteView: React.FC<PointDeVenteViewProps> = ({
               onClick={handleSuspendCart}
               disabled={cart.length === 0}
               title="Suspendre (F2)"
-              className="p-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 hover:border-amber-400 disabled:opacity-50 rounded-xl flex flex-col items-center justify-center gap-0.5 text-amber-600 dark:text-amber-400 transition-all"
+              className="p-2.5 bg-white dark:bg-slate-800 border border-slate-200/90 dark:border-slate-700/90 hover:border-amber-400 disabled:opacity-40 rounded-2xl flex flex-col items-center justify-center gap-0.5 text-amber-600 dark:text-amber-400 transition-all cursor-pointer shadow-2xs"
             >
-              <PauseCircle className="w-4 h-4" />
-              <span className="text-[9px] font-extrabold">Suspendre <span className="text-[8px] opacity-75">F2</span></span>
+              <PauseCircle className="w-4 h-4 text-amber-500" />
+              <span className="text-[10px] font-extrabold text-amber-600">Suspendre</span>
+              <span className="text-[9px] font-bold text-amber-400">F2</span>
             </button>
 
             <button
               type="button"
               onClick={() => setShowRecentSalesModal(true)}
-              title="Historique (F3)"
-              className="p-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 hover:border-blue-400 rounded-xl flex flex-col items-center justify-center gap-0.5 text-blue-600 dark:text-blue-400 transition-all"
+              title="Historique"
+              className="p-2.5 bg-white dark:bg-slate-800 border border-slate-200/90 dark:border-slate-700/90 hover:border-blue-400 rounded-2xl flex flex-col items-center justify-center gap-0.5 text-blue-600 dark:text-blue-400 transition-all cursor-pointer shadow-2xs"
             >
-              <Clock className="w-4 h-4" />
-              <span className="text-[9px] font-extrabold">Historique <span className="text-[8px] opacity-75">F3</span></span>
+              <RotateCcw className="w-4 h-4 text-blue-500" />
+              <span className="text-[10px] font-extrabold text-blue-600">Historique</span>
+              <span className="text-[9px] font-bold text-transparent select-none">-</span>
             </button>
 
             <button
               type="button"
               onClick={() => setShowDraftsModal(true)}
-              title="Brouillons"
-              className="p-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 hover:border-slate-400 rounded-xl flex flex-col items-center justify-center gap-0.5 text-slate-600 dark:text-slate-300 transition-all"
+              title="Brouillons (F3)"
+              className="p-2.5 bg-white dark:bg-slate-800 border border-slate-200/90 dark:border-slate-700/90 hover:border-slate-400 rounded-2xl flex flex-col items-center justify-center gap-0.5 text-slate-700 dark:text-slate-300 transition-all cursor-pointer shadow-2xs"
             >
-              <FileText className="w-4 h-4" />
-              <span className="text-[9px] font-extrabold">Brouillons</span>
+              <PauseCircle className="w-4 h-4 text-slate-500" />
+              <span className="text-[10px] font-extrabold text-slate-700 dark:text-slate-300">Brouillons</span>
+              <span className="text-[9px] font-bold text-slate-400">F3</span>
             </button>
 
             <button
               type="button"
-              onClick={() => setShowPrintCenterModal(true)}
-              title="Impression (F5)"
-              className="p-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 hover:border-slate-400 rounded-xl flex flex-col items-center justify-center gap-0.5 text-slate-600 dark:text-slate-300 transition-all"
+              onClick={toggleAutoPrint}
+              title={`Impression (F5) - ${isAutoPrintEnabled ? 'Activée' : 'Désactivée'}`}
+              className={`p-2.5 rounded-2xl flex flex-col items-center justify-center gap-0.5 transition-all cursor-pointer shadow-2xs ${
+                isAutoPrintEnabled
+                  ? 'bg-emerald-50/60 dark:bg-emerald-950/40 border-2 border-emerald-500 text-emerald-600 dark:text-emerald-400'
+                  : 'bg-white dark:bg-slate-800 border border-slate-200/90 dark:border-slate-700 text-slate-400 dark:text-slate-500 hover:border-slate-400'
+              }`}
             >
-              <Printer className="w-4 h-4" />
-              <span className="text-[9px] font-extrabold">Impression <span className="text-[8px] opacity-75">F5</span></span>
+              {isAutoPrintEnabled ? (
+                <Printer className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+              ) : (
+                <div className="relative">
+                  <Printer className="w-4 h-4 text-slate-400 dark:text-slate-500 opacity-60" />
+                  <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                    <div className="w-5 h-[1.5px] bg-slate-400 dark:bg-slate-500 rotate-45 rounded-full" />
+                  </div>
+                </div>
+              )}
+              <span className={`text-[10px] font-extrabold ${isAutoPrintEnabled ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-500 dark:text-slate-400'}`}>
+                Impression
+              </span>
+              <span className={`text-[9px] font-bold ${isAutoPrintEnabled ? 'text-emerald-500 dark:text-emerald-400' : 'text-slate-400'}`}>
+                F5
+              </span>
             </button>
           </div>
 
@@ -984,17 +1365,22 @@ export const PointDeVenteView: React.FC<PointDeVenteViewProps> = ({
             type="button"
             disabled={cart.length === 0}
             onClick={() => setShowCheckoutModal(true)}
-            className={`w-full py-3.5 rounded-2xl font-black text-sm text-white shadow-md active:scale-98 transition-all flex items-center justify-center gap-2 ${
+            className={`w-full py-3.5 px-4 rounded-2xl font-black text-sm text-white shadow-md active:scale-98 transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${
               isReturnMode
                 ? 'bg-red-600 hover:bg-red-700 shadow-red-600/30'
-                : 'bg-blue-600 hover:bg-blue-700 shadow-blue-600/30 disabled:opacity-50'
+                : 'bg-blue-600 hover:bg-blue-700 shadow-blue-600/30'
             }`}
           >
-            <ShoppingCart className="w-4 h-4" />
+            <Receipt className="w-4 h-4 shrink-0" />
             <span>
               {isReturnMode
-                ? 'Confirmer le retour et déduire le montant F1'
-                : 'Régler la facture F1'}
+                ? 'Confirmer le retour'
+                : isAutoPrintEnabled
+                ? 'Payer'
+                : 'Régler la facture'}
+            </span>
+            <span className="bg-blue-700/90 text-white text-[11px] font-extrabold px-2 py-0.5 rounded-md ml-1">
+              F1
             </span>
           </button>
 
@@ -1002,24 +1388,30 @@ export const PointDeVenteView: React.FC<PointDeVenteViewProps> = ({
           <div className="grid grid-cols-3 gap-2 pt-0.5">
             <button
               type="button"
-              onClick={() => alert('Option Pro-forma : ticket enregistré comme facture pro-forma.')}
-              className="py-1.5 px-2 bg-amber-50 dark:bg-amber-950/40 border border-amber-300 text-amber-700 dark:text-amber-300 rounded-xl text-[11px] font-bold text-center hover:bg-amber-100"
+              onClick={handleOpenProformaModal}
+              title="Créer une facture pro-forma"
+              className="py-2 px-2 bg-amber-50/40 dark:bg-amber-950/20 border border-amber-300/90 dark:border-amber-700/80 text-amber-700 dark:text-amber-400 rounded-2xl text-xs font-bold flex items-center justify-center gap-1.5 hover:bg-amber-100/60 transition-all cursor-pointer shadow-2xs"
             >
-              pro-forma
+              <FileText className="w-3.5 h-3.5 shrink-0" />
+              <span>pro-forma</span>
             </button>
             <button
               type="button"
-              onClick={() => alert('Option Commande : enregistré comme bon de commande.')}
-              className="py-1.5 px-2 bg-blue-50 dark:bg-blue-950/40 border border-blue-300 text-blue-700 dark:text-blue-300 rounded-xl text-[11px] font-bold text-center hover:bg-blue-100"
+              onClick={handleOpenOrderModal}
+              title="Enregistrer comme bon de commande"
+              className="py-2 px-2 bg-blue-50/40 dark:bg-blue-950/20 border border-blue-300/90 dark:border-blue-700/80 text-blue-600 dark:text-blue-400 rounded-2xl text-xs font-bold flex items-center justify-center gap-1.5 hover:bg-blue-100/60 transition-all cursor-pointer shadow-2xs"
             >
-              commande
+              <FileCheck className="w-3.5 h-3.5 shrink-0" />
+              <span>commande</span>
             </button>
             <button
               type="button"
               onClick={() => setShowPrintCenterModal(true)}
-              className="py-1.5 px-2 bg-purple-50 dark:bg-purple-950/40 border border-purple-300 text-purple-700 dark:text-purple-300 rounded-xl text-[11px] font-bold text-center hover:bg-purple-100"
+              title="Centre d'impression"
+              className="py-2 px-2 bg-purple-50/40 dark:bg-purple-950/20 border border-purple-300/90 dark:border-purple-700/80 text-purple-700 dark:text-purple-400 rounded-2xl text-xs font-bold flex items-center justify-center gap-1.5 hover:bg-purple-100/60 transition-all cursor-pointer shadow-2xs"
             >
-              Imprimer
+              <Printer className="w-3.5 h-3.5 shrink-0" />
+              <span>Imprimer</span>
             </button>
           </div>
         </div>
@@ -1254,23 +1646,24 @@ export const PointDeVenteView: React.FC<PointDeVenteViewProps> = ({
       {/* MODAL 3: Ajouter un Nouveau Produit */}
       {showAddProductModal && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-slate-800 rounded-3xl max-w-2xl w-full overflow-hidden shadow-2xl border border-slate-200 dark:border-slate-700 max-h-[90vh] flex flex-col">
-            <div className="p-4 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between">
-              <h3 className="font-extrabold text-base text-slate-900 dark:text-white">
+          <div className="bg-white dark:bg-slate-800 rounded-3xl max-w-4xl w-full overflow-hidden shadow-2xl border border-slate-200 dark:border-slate-700 max-h-[90vh] flex flex-col my-8">
+            <div className="px-8 py-6 border-b border-slate-100 dark:border-slate-700/80 flex items-center justify-between">
+              <h3 className="text-xl font-black text-slate-900 dark:text-white">
                 Ajouter un Nouveau Produit
               </h3>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-3">
                 <button
                   type="button"
                   onClick={handleSaveNewProduct}
-                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-extrabold shadow-sm"
+                  className="px-5 py-2.5 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs shadow-sm active:scale-95 transition-all flex items-center gap-1.5 cursor-pointer"
                 >
-                  Enregistrer le produit
+                  <Save className="w-4 h-4" />
+                  <span>Enregistrer le produit</span>
                 </button>
                 <button
                   type="button"
                   onClick={() => setShowAddProductModal(false)}
-                  className="text-slate-400 hover:text-slate-600 p-1"
+                  className="w-8 h-8 rounded-full text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 flex items-center justify-center transition-all cursor-pointer"
                 >
                   <X className="w-5 h-5" />
                 </button>
@@ -1278,141 +1671,347 @@ export const PointDeVenteView: React.FC<PointDeVenteViewProps> = ({
             </div>
 
             {/* Modal Tabs */}
-            <div className="flex border-b border-slate-200 dark:border-slate-700 px-4 bg-slate-50 dark:bg-slate-900/40">
+            <div className="flex items-center gap-3 px-8 pt-4 pb-4 border-b border-slate-100 dark:border-slate-700/80 bg-white dark:bg-slate-800">
               <button
                 type="button"
                 onClick={() => setAddProductTab('base')}
-                className={`py-3 px-4 text-xs font-bold border-b-2 transition-colors ${
+                className={`flex items-center gap-2 px-5 py-2.5 rounded-2xl font-extrabold text-xs transition-all cursor-pointer ${
                   addProductTab === 'base'
-                    ? 'border-blue-600 text-blue-600'
-                    : 'border-transparent text-slate-500'
+                    ? 'bg-blue-50/90 dark:bg-blue-950/50 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-800 shadow-none'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white font-bold'
                 }`}
               >
-                Infos de base
+                <Info className="w-4 h-4" />
+                <span>Infos de base</span>
               </button>
               <button
                 type="button"
                 onClick={() => setAddProductTab('props')}
-                className={`py-3 px-4 text-xs font-bold border-b-2 transition-colors ${
+                className={`flex items-center gap-2 px-5 py-2.5 rounded-2xl font-extrabold text-xs transition-all cursor-pointer ${
                   addProductTab === 'props'
-                    ? 'border-blue-600 text-blue-600'
-                    : 'border-transparent text-slate-500'
+                    ? 'bg-blue-50/90 dark:bg-blue-950/50 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-800 shadow-none'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white font-bold'
                 }`}
               >
-                Propriétés & tarifs
+                <SlidersHorizontal className="w-4 h-4" />
+                <span>Propriétés & tarifs</span>
               </button>
               <button
                 type="button"
                 onClick={() => setAddProductTab('variants')}
-                className={`py-3 px-4 text-xs font-bold border-b-2 transition-colors ${
+                className={`flex items-center gap-2 px-5 py-2.5 rounded-2xl font-extrabold text-xs transition-all cursor-pointer ${
                   addProductTab === 'variants'
-                    ? 'border-blue-600 text-blue-600'
-                    : 'border-transparent text-slate-500'
+                    ? 'bg-blue-50/90 dark:bg-blue-950/50 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-800 shadow-none'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white font-bold'
                 }`}
               >
-                Variantes & couleurs
+                <Layers className="w-4 h-4" />
+                <span>Variantes & couleurs</span>
               </button>
             </div>
 
-            <form onSubmit={handleSaveNewProduct} className="p-6 space-y-5 overflow-y-auto custom-scrollbar flex-1">
+            <form onSubmit={handleSaveNewProduct} className="p-8 space-y-6 overflow-y-auto custom-scrollbar flex-1 max-h-[75vh]">
               {addProductTab === 'base' && (
-                <>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1">
-                        Nom du produit *
+                <div className="space-y-5">
+                  {/* Grid 1: Barcode & Extra Barcodes */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
+                    {/* Code-barres Principal */}
+                    <div className="space-y-2">
+                      <label className="text-xs font-extrabold text-slate-700 dark:text-slate-300">
+                        Code-barres
+                      </label>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="text"
+                          value={newProdBarcode}
+                          onChange={(e) => setNewProdBarcode(e.target.value)}
+                          placeholder="Code-barres principal"
+                          className="flex-1 h-12 px-4 rounded-2xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 font-mono text-slate-900 dark:text-white text-xs font-bold focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                        />
+
+                        <button
+                          type="button"
+                          onClick={() => openPrintBarcodeModal(newProdBarcode, newProdName, 'Détail', newProdSalePrice)}
+                          className="h-12 w-12 shrink-0 rounded-2xl bg-blue-50 hover:bg-blue-100 text-blue-600 dark:bg-blue-950/60 dark:hover:bg-blue-900/80 dark:text-blue-400 border border-blue-200/80 dark:border-blue-800/80 flex items-center justify-center transition-all shadow-sm cursor-pointer"
+                          title="Imprimer le code-barres"
+                        >
+                          <Barcode className="w-5 h-5" />
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Codes-barres Supplémentaires */}
+                    <div className="space-y-2">
+                      <label className="text-xs font-extrabold text-slate-700 dark:text-slate-300">
+                        Codes-barres Supplémentaires (Optionnel)
+                      </label>
+
+                      <div className="rounded-2xl bg-slate-50/60 dark:bg-slate-900/40 p-3.5 border border-slate-200/80 dark:border-slate-800 space-y-3">
+                        {newProdExtraBarcodes.map((item, idx) => (
+                          <div
+                            key={idx}
+                            className="p-2 bg-white dark:bg-slate-800 rounded-2xl border border-blue-200/80 dark:border-slate-700 shadow-sm flex items-center gap-2"
+                          >
+                            <input
+                              type="text"
+                              value={item.codeBarre}
+                              onChange={(e) => {
+                                const next = [...newProdExtraBarcodes];
+                                next[idx] = { ...next[idx], codeBarre: e.target.value };
+                                setNewProdExtraBarcodes(next);
+                              }}
+                              placeholder="Code-barres"
+                              className="w-28 sm:w-36 h-9 px-3 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-100 dark:border-slate-700 font-mono text-xs font-bold text-slate-900 dark:text-white focus:outline-none"
+                            />
+
+                            <select
+                              value={item.typePrix}
+                              onChange={(e) => {
+                                const next = [...newProdExtraBarcodes];
+                                next[idx] = { ...next[idx], typePrix: e.target.value };
+                                setNewProdExtraBarcodes(next);
+                              }}
+                              className="h-9 px-2.5 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-100 dark:border-slate-700 text-xs font-bold text-slate-700 dark:text-slate-200 focus:outline-none cursor-pointer"
+                            >
+                              <option value="Détail">Détail</option>
+                              <option value="Gros">Gros</option>
+                            </select>
+
+                            <button
+                              type="button"
+                              onClick={() =>
+                                openPrintBarcodeModal(
+                                  item.codeBarre,
+                                  newProdName,
+                                  item.typePrix,
+                                  item.typePrix === 'Gros' ? newProdWholesalePrice : newProdSalePrice
+                                )
+                              }
+                              className="p-2 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-600 dark:bg-blue-950/60 dark:text-blue-400 border border-blue-200/80 dark:border-blue-800/80 transition-colors"
+                              title="Imprimer ce code-barres"
+                            >
+                              <Barcode className="w-4 h-4" />
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => setNewProdExtraBarcodes(newProdExtraBarcodes.filter((_, i) => i !== idx))}
+                              className="p-2 rounded-xl bg-slate-100 hover:bg-red-50 text-slate-400 hover:text-red-600 dark:bg-slate-700 dark:hover:bg-red-950/60 transition-colors"
+                              title="Supprimer"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+                        ))}
+
+                        <button
+                          type="button"
+                          onClick={handleAddExtraBarcode}
+                          className="w-full h-11 px-4 rounded-2xl bg-white dark:bg-slate-800 border border-blue-200 dark:border-blue-700 text-blue-600 dark:text-blue-400 font-bold text-xs flex items-center justify-center gap-2 hover:bg-blue-50/50 shadow-sm transition-all cursor-pointer"
+                        >
+                          <PlusCircle className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                          <span>+ Ajouter un Code-barres</span>
+                        </button>
+
+                        <p className="text-[11px] text-slate-400 font-medium px-1">
+                          Remarque : Chaque code-barres doit être unique.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Grid 2: Nom du Produit & Catégorie */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-extrabold text-slate-700 dark:text-slate-300">
+                        Nom du Produit <span className="text-red-500">*</span>
                       </label>
                       <input
                         type="text"
                         required
                         value={newProdName}
                         onChange={(e) => setNewProdName(e.target.value)}
-                        placeholder="Ex: Jus d'Orange 1L"
-                        className="w-full p-2.5 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-xs font-bold"
+                        placeholder="ex. Téléphone Portable..."
+                        className="w-full h-11 px-4 rounded-2xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white text-xs font-bold focus:outline-none focus:ring-2 focus:ring-blue-500/30"
                       />
                     </div>
 
-                    <div>
-                      <label className="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1">
-                        Code-barres
+                    <div className="space-y-1.5">
+                      <CreatableSelect
+                        label="Catégorie"
+                        value={newProdCategory}
+                        onChange={setNewProdCategory}
+                        options={categories}
+                        placeholder="Choisir ou créer une catégorie..."
+                      />
+                    </div>
+                  </div>
+
+                  {/* Grid 3: Famille & Fournisseur */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-1.5">
+                      <CreatableSelect
+                        label="Famille"
+                        value={newProdFamily}
+                        onChange={setNewProdFamily}
+                        options={Array.from(new Set(products.map((p) => p.famille).filter((f): f is string => Boolean(f))))}
+                        placeholder="Exemple : Famille Coca-Cola"
+                      />
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-extrabold text-slate-700 dark:text-slate-300">
+                        Fournisseur
+                      </label>
+                      <select
+                        value={newProdSupplier}
+                        onChange={(e) => setNewProdSupplier(e.target.value)}
+                        className="w-full h-11 px-4 rounded-2xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white text-xs font-bold focus:outline-none focus:ring-2 focus:ring-blue-500/30"
+                      >
+                        <option value="">Choisissez dans la liste des fournisseurs</option>
+                        {Array.from(new Set(products.map((p) => p.fournisseurNom).filter((fn): fn is string => Boolean(fn)))).map((f) => (
+                          <option key={f} value={f}>
+                            {f}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+
+                  {/* Grid 4: Alerte Stock Minimum & Emplacement */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-extrabold text-slate-700 dark:text-slate-300">
+                        Alerte Stock Minimum
+                      </label>
+                      <input
+                        type="number"
+                        min="0"
+                        value={newProdMinStock}
+                        onChange={(e) => setNewProdMinStock(e.target.value)}
+                        placeholder="5"
+                        className="w-full h-11 px-4 rounded-2xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white text-xs font-bold focus:outline-none focus:ring-2 focus:ring-blue-500/30"
+                      />
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-extrabold text-slate-700 dark:text-slate-300">
+                        Emplacement / Étagère
                       </label>
                       <input
                         type="text"
-                        value={newProdBarcode}
-                        onChange={(e) => setNewProdBarcode(e.target.value)}
-                        placeholder="Ex: 6130001234"
-                        className="w-full p-2.5 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-xs font-bold"
+                        value={newProdShelf}
+                        onChange={(e) => setNewProdShelf(e.target.value)}
+                        placeholder="Ex: Rayon A, Étagère 3"
+                        className="w-full h-11 px-4 rounded-2xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white text-xs font-bold focus:outline-none focus:ring-2 focus:ring-blue-500/30"
                       />
                     </div>
                   </div>
 
-                  <div>
-                    <label className="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1">
-                      Catégorie
+                  {/* Description */}
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-extrabold text-slate-700 dark:text-slate-300">
+                      Infos Supplémentaires (Description)
                     </label>
-                    <select
-                      value={newProdCategory}
-                      onChange={(e) => setNewProdCategory(e.target.value)}
-                      className="w-full p-2.5 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-xs font-bold"
-                    >
-                      {categories.map((c) => (
-                        <option key={c} value={c} className="bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100">{c}</option>
-                      ))}
-                    </select>
+                    <textarea
+                      rows={2}
+                      value={newProdDescription}
+                      onChange={(e) => setNewProdDescription(e.target.value)}
+                      placeholder="Notes ou description du produit..."
+                      className="w-full p-4 rounded-2xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white text-xs font-medium focus:outline-none focus:ring-2 focus:ring-blue-500/30 resize-none"
+                    />
                   </div>
 
-                  {/* Image upload box */}
-                  <div>
-                    <label className="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1">
+                  {/* Image upload */}
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-extrabold text-slate-700 dark:text-slate-300">
                       Image du Produit
                     </label>
                     <div className="flex items-center gap-4">
-                      <div className="w-16 h-16 rounded-2xl bg-slate-100 dark:bg-slate-900 border border-dashed border-slate-300 flex items-center justify-center text-slate-400">
-                        <ImageIcon className="w-6 h-6" />
+                      <div className="w-16 h-16 rounded-2xl bg-slate-100 dark:bg-slate-900 border-2 border-dashed border-slate-300 dark:border-slate-700 flex items-center justify-center text-slate-400 overflow-hidden">
+                        {newProdImage ? (
+                          <img src={newProdImage} alt="Aperçu" className="w-full h-full object-cover" />
+                        ) : (
+                          <ImageIcon className="w-6 h-6" />
+                        )}
                       </div>
-                      <input type="file" className="text-xs text-slate-500" />
+                      <label className="cursor-pointer px-4 py-2.5 rounded-2xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 font-bold text-xs transition-colors">
+                        <span>Choisir un fichier</span>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (file) {
+                              const reader = new FileReader();
+                              reader.onload = (re) => setNewProdImage(re.target?.result as string);
+                              reader.readAsDataURL(file);
+                            }
+                          }}
+                        />
+                      </label>
+                      <span className="text-xs text-slate-400">
+                        {newProdImage ? 'Image sélectionnée' : 'Aucun fichier choisi'}
+                      </span>
                     </div>
                   </div>
 
                   {/* Stock initial box */}
-                  <div className="p-4 bg-slate-50 dark:bg-slate-900/60 rounded-2xl border border-slate-200 dark:border-slate-700 space-y-4">
-                    <h4 className="text-xs font-extrabold text-blue-600 uppercase">
+                  <div className="p-5 bg-slate-50/80 dark:bg-slate-900/60 rounded-3xl border border-slate-200 dark:border-slate-700 space-y-4">
+                    <h4 className="text-xs font-black text-blue-600 dark:text-blue-400 uppercase tracking-wider">
                       Infos du lot initial (Stock de départ)
                     </h4>
 
-                    <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        <label className="block text-[11px] font-bold text-slate-500 mb-1">Quantité Initiale</label>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div className="space-y-1.5">
+                        <label className="text-xs font-extrabold text-slate-700 dark:text-slate-300">
+                          Quantité Initiale
+                        </label>
                         <input
                           type="number"
                           value={newProdInitialQty}
                           onChange={(e) => setNewProdInitialQty(e.target.value)}
-                          className="w-full p-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold"
+                          className="w-full h-11 px-4 rounded-2xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white text-xs font-bold focus:outline-none"
                         />
                       </div>
-                      <div>
-                        <label className="block text-[11px] font-bold text-slate-500 mb-1">Prix d'Achat (DA)</label>
+
+                      <div className="space-y-1.5">
+                        <label className="text-xs font-extrabold text-slate-700 dark:text-slate-300">
+                          Prix d'Achat (DA)
+                        </label>
                         <input
                           type="number"
                           value={newProdCostPrice}
                           onChange={(e) => setNewProdCostPrice(e.target.value)}
-                          className="w-full p-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold"
+                          className="w-full h-11 px-4 rounded-2xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white text-xs font-bold focus:outline-none"
                         />
                       </div>
                     </div>
 
-                    <div>
-                      <label className="block text-[11px] font-bold text-slate-500 mb-1">Marge bénéficiaire</label>
-                      <div className="flex items-center gap-2">
-                        {[0, 10, 20, 30, 50].map((m) => (
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-extrabold text-slate-700 dark:text-slate-300">
+                        Marge bénéficiaire
+                      </label>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <div className="flex items-center gap-1 px-3 py-1.5 bg-white dark:bg-slate-800 border border-emerald-300 dark:border-emerald-700 rounded-xl">
+                          <input
+                            type="number"
+                            value={newProdMargin}
+                            onChange={(e) => handleMarginPillClick(parseFloat(e.target.value) || 0)}
+                            className="w-10 text-xs font-bold text-center bg-transparent focus:outline-none"
+                          />
+                          <span className="text-xs font-bold text-emerald-600">%</span>
+                        </div>
+                        {[10, 20, 30, 50].map((m) => (
                           <button
                             key={m}
                             type="button"
                             onClick={() => handleMarginPillClick(m)}
-                            className={`px-3 py-1 rounded-xl text-xs font-extrabold transition-all border ${
+                            className={`px-3 py-1.5 rounded-xl text-xs font-extrabold transition-all border ${
                               newProdMargin === m
-                                ? 'bg-emerald-500 text-white border-emerald-500'
-                                : 'bg-white dark:bg-slate-800 border-emerald-300 text-emerald-700'
+                                ? 'bg-emerald-500 text-white border-emerald-500 shadow-sm'
+                                : 'bg-white dark:bg-slate-800 border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-50'
                             }`}
                           >
                             {m}%
@@ -1421,39 +2020,46 @@ export const PointDeVenteView: React.FC<PointDeVenteViewProps> = ({
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        <label className="block text-[11px] font-bold text-slate-500 mb-1">Prix de Vente au Détail (DA)</label>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div className="space-y-1.5">
+                        <label className="text-xs font-extrabold text-slate-700 dark:text-slate-300">
+                          Prix de Vente au Détail (DA)
+                        </label>
                         <input
                           type="number"
                           value={newProdSalePrice}
                           onChange={(e) => setNewProdSalePrice(e.target.value)}
-                          className="w-full p-2 bg-white dark:bg-slate-800 border border-blue-400 rounded-xl text-xs font-bold"
+                          className="w-full h-11 px-4 rounded-2xl bg-white dark:bg-slate-800 border-2 border-blue-400 dark:border-blue-600 text-slate-900 dark:text-white text-xs font-extrabold focus:outline-none"
                         />
                       </div>
-                      <div>
-                        <label className="block text-[11px] font-bold text-slate-500 mb-1">Prix de Vente en Gros</label>
+
+                      <div className="space-y-1.5">
+                        <label className="text-xs font-extrabold text-slate-700 dark:text-slate-300">
+                          Prix de Vente en Gros
+                        </label>
                         <input
                           type="number"
                           value={newProdWholesalePrice}
                           onChange={(e) => setNewProdWholesalePrice(e.target.value)}
                           placeholder="Optionnel"
-                          className="w-full p-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold"
+                          className="w-full h-11 px-4 rounded-2xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white text-xs font-bold focus:outline-none"
                         />
                       </div>
                     </div>
 
-                    <div>
-                      <label className="block text-[11px] font-bold text-slate-500 mb-1">Date de Péremption</label>
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-extrabold text-slate-700 dark:text-slate-300">
+                        Date de Péremption
+                      </label>
                       <input
                         type="date"
                         value={newProdExpiry}
                         onChange={(e) => setNewProdExpiry(e.target.value)}
-                        className="w-full p-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold"
+                        className="w-full h-11 px-4 rounded-2xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white text-xs font-bold focus:outline-none"
                       />
                     </div>
                   </div>
-                </>
+                </div>
               )}
 
               {addProductTab === 'props' && (
@@ -1759,13 +2365,14 @@ export const PointDeVenteView: React.FC<PointDeVenteViewProps> = ({
                                 
                                 const newVars = combinations.map((combo: any) => {
                                   const name = Array.isArray(combo) ? combo.join(' - ') : combo;
+                                  const existing = newProdVariantes.find(ev => ev.nom === name);
                                   return {
-                                    id: Math.random().toString(),
+                                    id: existing?.id || Math.random().toString(),
                                     nom: name,
-                                    codeBarre: v.codeBarre || Math.floor(100000000000 + Math.random() * 900000000000).toString(),
-                                    quantite: 0,
-                                    prixAchat: parseFloat(newProdCostPrice) || 0,
-                                    prixVente: parseFloat(newProdSalePrice) || 0,
+                                    codeBarre: existing?.codeBarre || Math.floor(100000000000 + Math.random() * 900000000000).toString(),
+                                    quantite: existing?.quantite || 0,
+                                    prixAchat: existing?.prixAchat ?? (parseFloat(newProdCostPrice) || 0),
+                                    prixVente: existing?.prixVente ?? (parseFloat(newProdSalePrice) || 0),
                                     actif: true
                                   };
                                 });
@@ -1983,6 +2590,241 @@ export const PointDeVenteView: React.FC<PointDeVenteViewProps> = ({
         </div>
       )}
 
+      {/* MODAL IMPRIMER LE CODE-BARRES */}
+      {showPrintModal && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+          <div className="bg-white dark:bg-slate-800 rounded-3xl max-w-md w-full shadow-2xl overflow-hidden border border-slate-100 dark:border-slate-700">
+            {/* Header */}
+            <div className="px-6 py-5 border-b border-slate-100 dark:border-slate-700/80 text-center relative">
+              <h3 className="text-base font-extrabold text-slate-900 dark:text-white">
+                Imprimer le Code-barres
+              </h3>
+              <p className="text-xs font-semibold text-slate-400 mt-0.5">
+                Configuration des étiquettes
+              </p>
+              <button
+                type="button"
+                onClick={() => setShowPrintModal(false)}
+                className="absolute right-4 top-4 w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-700 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 flex items-center justify-center transition-all cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Body */}
+            <div className="p-6 space-y-4 max-h-[75vh] overflow-y-auto">
+              {/* Code-barres */}
+              <div className="space-y-1">
+                <label className="text-[11px] font-extrabold text-slate-700 dark:text-slate-300">
+                  Code-barres
+                </label>
+                <input
+                  type="text"
+                  readOnly
+                  value={printBarcode}
+                  className="w-full h-11 px-4 rounded-2xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 font-mono text-slate-900 dark:text-white text-xs font-extrabold opacity-90"
+                />
+              </div>
+
+              {/* Produit */}
+              <div className="space-y-1">
+                <label className="text-[11px] font-extrabold text-slate-700 dark:text-slate-300">
+                  Produit
+                </label>
+                <input
+                  type="text"
+                  readOnly
+                  value={printProductName}
+                  className="w-full h-11 px-4 rounded-2xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white text-xs font-extrabold opacity-90"
+                />
+              </div>
+
+              {/* Type de prix & Prix */}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <label className="text-[11px] font-extrabold text-slate-700 dark:text-slate-300">
+                    Type de Prix
+                  </label>
+                  <select
+                    value={printPriceType}
+                    onChange={(e) => setPrintPriceType(e.target.value)}
+                    className="w-full h-11 px-3 rounded-2xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-900 dark:text-white focus:outline-none cursor-pointer"
+                  >
+                    <option value="Détail">Détail</option>
+                    <option value="Gros">Gros</option>
+                  </select>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[11px] font-extrabold text-slate-700 dark:text-slate-300">
+                    Prix (DA)
+                  </label>
+                  <input
+                    type="number"
+                    value={printPrice}
+                    onChange={(e) => setPrintPrice(e.target.value)}
+                    className="w-full h-11 px-4 rounded-2xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white text-xs font-bold focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              {/* Nombre d'étiquettes */}
+              <div className="space-y-1">
+                <label className="text-[11px] font-extrabold text-slate-700 dark:text-slate-300">
+                  Nombre d'étiquettes
+                </label>
+                <input
+                  type="number"
+                  min="1"
+                  value={printLabelCount}
+                  onChange={(e) => setPrintLabelCount(parseInt(e.target.value) || 1)}
+                  className="w-full h-11 px-4 rounded-2xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white text-xs font-bold focus:outline-none"
+                />
+              </div>
+
+              {/* Taille de l'étiquette */}
+              <div className="space-y-1">
+                <label className="text-[11px] font-extrabold text-slate-700 dark:text-slate-300">
+                  Taille de l'étiquette
+                </label>
+                <select
+                  value={printLabelSize}
+                  onChange={(e) => setPrintLabelSize(e.target.value)}
+                  className="w-full h-11 px-4 rounded-2xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-900 dark:text-white focus:outline-none cursor-pointer"
+                >
+                  <option value="40 × 25 mm">40 × 25 mm</option>
+                  <option value="40 × 30 mm">40 × 30 mm</option>
+                  <option value="50 × 25 mm">50 × 25 mm</option>
+                  <option value="50 × 30 mm">50 × 30 mm</option>
+                  <option value="60 × 40 mm">60 × 40 mm</option>
+                  <option value="Personnalisé...">Personnalisé...</option>
+                </select>
+              </div>
+
+              {/* Hauteur du code-barres automatique */}
+              <div className="space-y-1 pt-1">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={autoHeight}
+                    onChange={(e) => setAutoHeight(e.target.checked)}
+                    className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                  />
+                  <span className="text-xs font-bold text-slate-800 dark:text-slate-200">
+                    Hauteur du code-barres automatique
+                  </span>
+                </label>
+                <p className="text-[10px] text-slate-400 font-medium pl-6 leading-tight">
+                  Choisit automatiquement la meilleure hauteur pour remplir l'espace restant tout en gardant le code-barres lisible.
+                </p>
+              </div>
+
+              {/* Contenu de l'étiquette */}
+              <div className="space-y-2 pt-2 border-t border-slate-100 dark:border-slate-700/80">
+                <label className="text-xs font-extrabold text-slate-800 dark:text-slate-200 block">
+                  Contenu de l'étiquette
+                </label>
+
+                <div className="grid grid-cols-2 gap-y-2.5 gap-x-2">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={labelContent.storeName}
+                      onChange={(e) => setLabelContent({ ...labelContent, storeName: e.target.checked })}
+                      className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                    />
+                    <span className="text-xs font-semibold text-slate-700 dark:text-slate-300">Nom du magasin</span>
+                  </label>
+
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={labelContent.productName}
+                      onChange={(e) => setLabelContent({ ...labelContent, productName: e.target.checked })}
+                      className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                    />
+                    <span className="text-xs font-semibold text-slate-700 dark:text-slate-300">Nom du produit</span>
+                  </label>
+
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={labelContent.price}
+                      onChange={(e) => setLabelContent({ ...labelContent, price: e.target.checked })}
+                      className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                    />
+                    <span className="text-xs font-semibold text-slate-700 dark:text-slate-300">Prix</span>
+                  </label>
+
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={labelContent.priceType}
+                      onChange={(e) => setLabelContent({ ...labelContent, priceType: e.target.checked })}
+                      className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                    />
+                    <span className="text-xs font-semibold text-slate-700 dark:text-slate-300">Type de prix</span>
+                  </label>
+
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={labelContent.barcodeNumber}
+                      onChange={(e) => setLabelContent({ ...labelContent, barcodeNumber: e.target.checked })}
+                      className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                    />
+                    <span className="text-xs font-semibold text-slate-700 dark:text-slate-300">Numéro du code-barres</span>
+                  </label>
+
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={labelContent.variants}
+                      onChange={(e) => setLabelContent({ ...labelContent, variants: e.target.checked })}
+                      className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                    />
+                    <span className="text-xs font-semibold text-slate-700 dark:text-slate-300">Variantes</span>
+                  </label>
+
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={labelContent.discount}
+                      onChange={(e) => setLabelContent({ ...labelContent, discount: e.target.checked })}
+                      className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                    />
+                    <span className="text-xs font-semibold text-slate-700 dark:text-slate-300">Remise</span>
+                  </label>
+                </div>
+              </div>
+            </div>
+
+            {/* Footer Actions */}
+            <div className="p-4 bg-slate-50 dark:bg-slate-900/50 border-t border-slate-100 dark:border-slate-700/80 grid grid-cols-2 gap-3">
+              <button
+                type="button"
+                onClick={() => setShowPrintModal(false)}
+                className="w-full py-3 rounded-2xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 font-bold text-xs hover:bg-slate-100 dark:hover:bg-slate-700 transition-all cursor-pointer"
+              >
+                Annuler
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  window.print();
+                  setShowPrintModal(false);
+                }}
+                className="w-full py-3 rounded-2xl bg-blue-600 hover:bg-blue-700 text-white font-extrabold text-xs shadow-lg shadow-blue-500/25 transition-all flex items-center justify-center gap-2 cursor-pointer"
+              >
+                <Printer className="w-4 h-4" />
+                <span>Imprimer</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* MODAL 4: Ventes Récentes (Historique F3) */}
       {showRecentSalesModal && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
@@ -2034,10 +2876,19 @@ export const PointDeVenteView: React.FC<PointDeVenteViewProps> = ({
                             <button
                               type="button"
                               onClick={() => {
-                                setShowRecentSalesModal(false);
-                                setShowPrintCenterModal(true);
+                                printReceipt({
+                                  id: s.id,
+                                  date: s.date,
+                                  clientNom: s.clientNom,
+                                  items: s.items,
+                                  total: s.total,
+                                  montantPaye: s.montantPaye,
+                                  reste: s.reste,
+                                  methodePaiement: s.methodePaiement,
+                                  session: s.session,
+                                });
                               }}
-                              className="p-1 rounded bg-blue-50 text-blue-600 text-xs font-bold"
+                              className="px-2.5 py-1 rounded-lg bg-blue-50 hover:bg-blue-100 dark:bg-blue-950/60 dark:hover:bg-blue-900/80 text-blue-600 dark:text-blue-400 text-xs font-bold transition-colors cursor-pointer"
                             >
                               Imprimer
                             </button>
@@ -2183,8 +3034,36 @@ export const PointDeVenteView: React.FC<PointDeVenteViewProps> = ({
                   </p>
                   <button
                     type="button"
-                    onClick={() => window.print()}
-                    className="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-extrabold text-xs rounded-xl shadow-md"
+                    onClick={() => {
+                      const latestSale = sales[0];
+                      if (latestSale) {
+                        printReceipt({
+                          id: latestSale.id,
+                          date: latestSale.date,
+                          clientNom: latestSale.clientNom,
+                          items: latestSale.items,
+                          total: latestSale.total,
+                          montantPaye: latestSale.montantPaye,
+                          reste: latestSale.reste,
+                          methodePaiement: latestSale.methodePaiement,
+                          session: latestSale.session,
+                        });
+                      } else if (cart.length > 0) {
+                        printReceipt({
+                          date: new Date().toLocaleDateString('fr-FR') + ' ' + new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }),
+                          clientNom: selectedCustomer,
+                          items: cart.map((i) => ({
+                            nom: i.product.nom,
+                            prixUnitaire: i.product.prixVente,
+                            quantite: i.qty,
+                            total: i.product.prixVente * i.qty,
+                          })),
+                          total: totalCart,
+                        });
+                      }
+                      setShowPrintCenterModal(false);
+                    }}
+                    className="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-extrabold text-xs rounded-xl shadow-md cursor-pointer"
                   >
                     Lancer l'impression
                   </button>
@@ -2359,13 +3238,260 @@ export const PointDeVenteView: React.FC<PointDeVenteViewProps> = ({
                 className={`w-full py-4 rounded-2xl font-extrabold text-sm text-white shadow-lg transition-all cursor-pointer ${
                   isReturnMode
                     ? 'bg-red-600 hover:bg-red-700 shadow-red-600/30'
-                    : 'bg-emerald-600 hover:bg-emerald-700 shadow-emerald-600/30'
+                    : isAutoPrintEnabled
+                    ? 'bg-emerald-600 hover:bg-emerald-700 shadow-emerald-600/30'
+                    : 'bg-blue-600 hover:bg-blue-700 shadow-blue-600/30'
                 }`}
               >
-                {isReturnMode ? t('pos.confirmReturnBtn', 'Valider le retour') : t('pos.confirmPrintBtn', 'Confirmer & Imprimer Ticket')}
+                {isReturnMode
+                  ? t('pos.confirmReturnBtn', 'Valider le retour')
+                  : isAutoPrintEnabled
+                  ? t('pos.confirmPrintBtn', 'Confirmer & Imprimer Ticket')
+                  : 'Régler la facture'}
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* MODAL: Enregistrer comme Bon de Commande (Matching Screenshot 3) */}
+      {showOrderModal && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-slate-800 rounded-3xl max-w-lg w-full overflow-hidden shadow-2xl border border-slate-200 dark:border-slate-700 animate-in fade-in zoom-in-95 duration-200">
+            {/* Header */}
+            <div className="bg-blue-600 px-6 py-4 text-white flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <FileCheck className="w-5 h-5" />
+                <h3 className="font-extrabold text-base">Enregistrer comme bon de commande</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowOrderModal(false)}
+                className="text-white/80 hover:text-white p-1 rounded-lg hover:bg-white/10 transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Form */}
+            <form onSubmit={handleSaveOrder} className="p-6 space-y-4">
+              {/* Client & Total info header */}
+              <div className="flex items-center justify-between p-3 rounded-xl bg-blue-50 dark:bg-blue-950/40 border border-blue-100 dark:border-blue-900/50">
+                <div className="text-xs">
+                  <span className="text-slate-500 font-medium">Client: </span>
+                  <span className="font-bold text-slate-800 dark:text-slate-200">{selectedCustomer}</span>
+                  <div className="text-[11px] text-slate-400">{cart.reduce((acc, i) => acc + i.qty, 0)} article(s)</div>
+                </div>
+                <div className="text-right">
+                  <span className="text-[11px] text-slate-500 font-medium block">Total Commande</span>
+                  <span className="text-base font-black text-blue-600 dark:text-blue-400">{totalCart.toFixed(2)} DA</span>
+                </div>
+              </div>
+
+              {/* Date de livraison prévue */}
+              <div>
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                  Date de livraison prévue
+                </label>
+                <div className="relative">
+                  <input
+                    type="date"
+                    required
+                    value={orderDeliveryDate}
+                    onChange={(e) => setOrderDeliveryDate(e.target.value)}
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-xs font-bold text-slate-800 dark:text-slate-100 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              {/* Acompte */}
+              <div>
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                  Acompte (DA)
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={orderDeposit}
+                  onChange={(e) => setOrderDeposit(e.target.value)}
+                  placeholder="0.00"
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-xs font-bold text-slate-800 dark:text-slate-100 placeholder:text-slate-400 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                />
+                <p className="text-[11px] text-slate-400 dark:text-slate-500 font-medium mt-1">
+                  À la livraison, l'acompte est imputé sur la facture réelle
+                </p>
+              </div>
+
+              {/* Mode de réception de l'acompte */}
+              <div>
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                  Mode de réception de l'acompte
+                </label>
+                <select
+                  value={orderDepositMethod}
+                  onChange={(e) => setOrderDepositMethod(e.target.value)}
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-blue-500 dark:border-blue-400 bg-white dark:bg-slate-900 text-xs font-bold text-slate-800 dark:text-slate-100 focus:outline-none cursor-pointer"
+                >
+                  <option value="Espèces (Cash)">Espèces (Cash)</option>
+                  <option value="Carte Bancaire (CIB / Edahabia)">Carte Bancaire (CIB / Edahabia)</option>
+                  <option value="Chèque bancaire">Chèque bancaire</option>
+                  <option value="Virement bancaire">Virement bancaire</option>
+                </select>
+              </div>
+
+              {/* Notes et conditions */}
+              <div>
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                  Notes et conditions
+                </label>
+                <textarea
+                  value={orderNotes}
+                  onChange={(e) => setOrderNotes(e.target.value)}
+                  placeholder="Conditions particulières de la commande..."
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-xs font-medium text-slate-800 dark:text-slate-100 placeholder:text-slate-400 focus:ring-2 focus:ring-blue-500 focus:outline-none h-20 resize-none"
+                />
+              </div>
+
+              {/* Checkbox Réserver le stock */}
+              <label className="flex items-center gap-2.5 cursor-pointer pt-1 select-none">
+                <input
+                  type="checkbox"
+                  checked={orderReserveStock}
+                  onChange={(e) => setOrderReserveStock(e.target.checked)}
+                  className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                />
+                <span className="text-xs font-bold text-slate-700 dark:text-slate-200">
+                  Réserver le stock pour cette commande
+                </span>
+              </label>
+
+              {/* Footer */}
+              <div className="pt-3 border-t border-slate-100 dark:border-slate-700/60 flex items-center justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={() => setShowOrderModal(false)}
+                  className="px-5 py-2.5 rounded-xl border border-slate-300 dark:border-slate-600 text-xs font-bold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                >
+                  Annuler
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-extrabold shadow-md flex items-center gap-2 transition-all cursor-pointer"
+                >
+                  <Save className="w-3.5 h-3.5" />
+                  <span>Enregistrer la commande</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: Enregistrer comme Facture Pro-forma */}
+      {showProformaModal && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-slate-800 rounded-3xl max-w-lg w-full overflow-hidden shadow-2xl border border-slate-200 dark:border-slate-700 animate-in fade-in zoom-in-95 duration-200">
+            {/* Header */}
+            <div className="bg-amber-600 px-6 py-4 text-white flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <FileText className="w-5 h-5" />
+                <h3 className="font-extrabold text-base">Enregistrer comme facture pro-forma</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowProformaModal(false)}
+                className="text-white/80 hover:text-white p-1 rounded-lg hover:bg-white/10 transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Form */}
+            <form onSubmit={handleSaveProforma} className="p-6 space-y-4">
+              {/* Client & Pricing Breakdown */}
+              <div className="p-3.5 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900/50 space-y-1.5">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-slate-500 font-medium">Client: </span>
+                  <span className="font-bold text-slate-800 dark:text-slate-200">{selectedCustomer}</span>
+                </div>
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-slate-500 font-medium">Total HT (estimation): </span>
+                  <span className="font-bold text-slate-700 dark:text-slate-300">{(totalCart / 1.19).toFixed(2)} DA</span>
+                </div>
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-slate-500 font-medium">TVA (19%): </span>
+                  <span className="font-bold text-slate-700 dark:text-slate-300">{(totalCart - totalCart / 1.19).toFixed(2)} DA</span>
+                </div>
+                <div className="flex items-center justify-between text-sm pt-1 border-t border-amber-200 dark:border-amber-800">
+                  <span className="font-bold text-amber-900 dark:text-amber-200">Total TTC Devis: </span>
+                  <span className="font-black text-amber-700 dark:text-amber-400">{totalCart.toFixed(2)} DA</span>
+                </div>
+              </div>
+
+              {/* Date de validité */}
+              <div>
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                  Date de validité de l'offre
+                </label>
+                <input
+                  type="date"
+                  required
+                  value={proformaValidityDate}
+                  onChange={(e) => setProformaValidityDate(e.target.value)}
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-xs font-bold text-slate-800 dark:text-slate-100 focus:ring-2 focus:ring-amber-500 focus:outline-none"
+                />
+              </div>
+
+              {/* Notes et conditions */}
+              <div>
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                  Conditions particulières / Remarques
+                </label>
+                <textarea
+                  value={proformaNotes}
+                  onChange={(e) => setProformaNotes(e.target.value)}
+                  placeholder="Conditions de paiement, délai de livraison estimé..."
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-xs font-medium text-slate-800 dark:text-slate-100 placeholder:text-slate-400 focus:ring-2 focus:ring-amber-500 focus:outline-none h-20 resize-none"
+                />
+              </div>
+
+              {/* Footer */}
+              <div className="pt-3 border-t border-slate-100 dark:border-slate-700/60 flex items-center justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={() => setShowProformaModal(false)}
+                  className="px-5 py-2.5 rounded-xl border border-slate-300 dark:border-slate-600 text-xs font-bold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                >
+                  Annuler
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-extrabold shadow-md flex items-center gap-2 transition-all cursor-pointer"
+                >
+                  <Save className="w-3.5 h-3.5" />
+                  <span>Enregistrer la pro-forma</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Floating Toast Notification (Matching Screenshot 2) */}
+      {toastMessage && (
+        <div className="fixed bottom-6 right-6 z-[9999] flex items-center gap-3 px-5 py-3.5 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 rounded-2xl shadow-2xl border border-slate-200/80 dark:border-slate-700 animate-in fade-in slide-in-from-bottom-5 duration-300">
+          <div className="w-8 h-8 rounded-full bg-blue-50 dark:bg-blue-950/60 flex items-center justify-center text-blue-600 dark:text-blue-400 shrink-0">
+            <Info className="w-4 h-4" />
+          </div>
+          <span className="text-xs sm:text-sm font-bold">{toastMessage}</span>
+          <button
+            type="button"
+            onClick={() => setToastMessage(null)}
+            className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 ml-2 cursor-pointer p-1"
+          >
+            <X className="w-4 h-4" />
+          </button>
         </div>
       )}
     </div>

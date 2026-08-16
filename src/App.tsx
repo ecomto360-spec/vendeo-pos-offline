@@ -226,10 +226,11 @@ export function App() {
   );
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(!!getCurrentSessionUser() || (isInitialized && !!initialUsers[0]));
 
-  // Modals
+  // Modals & Navigation States
   const [showShortcutsModal, setShowShortcutsModal] = useState(false);
   const [showVideosModal, setShowVideosModal] = useState(false);
   const [showOfferModal, setShowOfferModal] = useState(false);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   useEffect(() => {
     if (theme === 'dark') {
@@ -705,12 +706,17 @@ export function App() {
   return (
     <LanguageProvider language={settings.langue} onLanguageChange={(lang) => handleUpdateSettings({ langue: lang })}>
       <div className="min-h-screen bg-slate-100 dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex font-sans antialiased selection:bg-blue-500 selection:text-white">
-        {/* Left Navigation Sidebar */}
+        {/* Navigation Sidebar (Desktop + Mobile Drawer) */}
         <Sidebar
           currentView={currentView}
-          onViewChange={setCurrentView}
+          onViewChange={(view) => {
+            setCurrentView(view);
+            setIsMobileMenuOpen(false);
+          }}
           onLogout={handleLogout}
           currentLanguage={settings.langue}
+          isOpen={isMobileMenuOpen}
+          onClose={() => setIsMobileMenuOpen(false)}
         />
 
       {/* Main Container */}
@@ -727,6 +733,7 @@ export function App() {
           onOpenVideos={() => setShowVideosModal(true)}
           onOpenOffer={() => setShowOfferModal(true)}
           onOpenActivation={handleOpenActivationPage}
+          onOpenMobileMenu={() => setIsMobileMenuOpen(true)}
         />
 
         {/* Dynamic View Route */}
@@ -760,10 +767,14 @@ export function App() {
               categories={categories}
               activeSession={activeSession}
               sales={sales}
+              orders={orders}
+              proformas={proformas}
               onOpenSessionRequested={() => setCurrentView('caisse')}
               onCompleteSale={handleCompleteSale}
               onAddProduct={handleAddProduct}
               onGoToJournalVentes={() => setCurrentView('journal-ventes')}
+              onAddOrder={handleAddOrder}
+              onAddProforma={handleAddProforma}
             />
           )}
 
@@ -784,6 +795,7 @@ export function App() {
               products={products}
               categories={categories}
               suppliers={suppliers}
+              sales={sales}
               onAddProduct={handleAddProduct}
               onUpdateProduct={handleUpdateProduct}
               onDeleteProduct={handleDeleteProduct}

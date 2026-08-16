@@ -122,6 +122,398 @@ export const initialBonsCommande: BonCommande[] = [
 
 export const initialProducts: Product[] = [
   {
+    id: 'p-proj',
+    codeBarre: '613000000010',
+    nom: 'Table avec projecteur ...',
+    categorie: 'Jeux & Jouets',
+    prixAchat: 160,
+    prixVente: 220,
+    quantite: 8,
+    minStock: 2,
+    uniteMesure: 'À Vendre',
+    image: 'https://images.unsplash.com/photo-1596461404969-9ae70f2830c1?w=500&auto=format&fit=crop&q=80',
+    datePeremption: '2028-12-31',
+    lots: [
+      {
+        id: 'lot-proj-1',
+        nomLot: 'BATCH-2026-PROJ',
+        quantite: 8,
+        prixAchat: 160,
+        prixVente: 220,
+        isDefault: true,
+      }
+    ]
+  },
+  {
+    id: 'p-cam',
+    codeBarre: '613000000011',
+    nom: 'Mini caméra HD pour e...',
+    categorie: 'Jeux & Jouets',
+    prixAchat: 210,
+    prixVente: 300,
+    quantite: 8,
+    minStock: 2,
+    uniteMesure: 'À Vendre',
+    image: 'https://images.unsplash.com/photo-1516035069371-29a1b244cc32?w=500&auto=format&fit=crop&q=80',
+    datePeremption: '2028-12-31',
+    lots: [
+      {
+        id: 'lot-cam-1',
+        nomLot: 'BATCH-2026-CAM',
+        quantite: 8,
+        prixAchat: 210,
+        prixVente: 300,
+        isDefault: true,
+      }
+    ]
+  },
+  {
+    id: 'p-alfa',
+    codeBarre: '613000000012',
+    nom: 'Robotics - Alfabot',
+    categorie: 'Jeux & Jouets',
+    prixAchat: 160,
+    prixVente: 225,
+    quantite: 5,
+    minStock: 5,
+    uniteMesure: 'À Vendre',
+    image: 'https://images.unsplash.com/photo-1485827404703-89b55fcc595e?w=500&auto=format&fit=crop&q=80',
+    datePeremption: '2028-12-31',
+    lots: [
+      {
+        id: 'lot-alfa-1',
+        nomLot: 'BATCH-2026-ALFA',
+        quantite: 5,
+        prixAchat: 160,
+        prixVente: 225,
+        isDefault: true,
+      }
+    ]
+  },
+  {
+    id: 'p-alfa3',
+    codeBarre: '613000000013',
+    nom: 'Robotics - Alfabot 3 e...',
+    categorie: 'Jeux & Jouets',
+    prixAchat: 170,
+    prixVente: 242,
+    quantite: 10,
+    minStock: 2,
+    uniteMesure: 'À Vendre',
+    image: 'https://images.unsplash.com/photo-1563770660941-20978e870e26?w=500&auto=format&fit=crop&q=80',
+    datePeremption: '2028-12-31',
+    lots: [
+      {
+        id: 'lot-alfa3-1',
+        nomLot: 'BATCH-2026-ALFA3',
+        quantite: 10,
+        prixAchat: 170,
+        prixVente: 242,
+        isDefault: true,
+      }
+    ]
+  },
+  {
+    id: 'p-sci',
+    codeBarre: '613000000014',
+    nom: 'Kit de Ciências 100 Ex...',
+    categorie: 'Jeux & Jouets',
+    prixAchat: 165,
+    prixVente: 240,
+    quantite: 9,
+    minStock: 2,
+    uniteMesure: 'À Vendre',
+    image: 'https://images.unsplash.com/photo-1532094349884-543bc11b234d?w=500&auto=format&fit=crop&q=80',
+    datePeremption: '2028-12-31',
+    lots: [
+      {
+        id: 'lot-sci-1',
+        nomLot: 'BATCH-2026-SCI',
+        quantite: 9,
+        prixAchat: 165,
+        prixVente: 240,
+        isDefault: true,
+      }
+    ]
+  },
+  {
+    id: 'p-choc',
+    codeBarre: '613000000015',
+    nom: 'Fábrica de Chocolates',
+    categorie: 'Jeux & Jouets',
+    prixAchat: 120,
+    prixVente: 180,
+    quantite: 6,
+    minStock: 2,
+    uniteMesure: 'À Vendre',
+    image: 'https://images.unsplash.com/photo-1548907040-4baa42d10919?w=500&auto=format&fit=crop&q=80',
+    datePeremption: '2028-12-31',
+    lots: [
+      {
+        id: 'lot-choc-1',
+        nomLot: 'BATCH-2026-CHOC',
+        quantite: 6,
+        prixAchat: 120,
+        prixVente: 180,
+        isDefault: true,
+      }
+    ]
+  },
+  {
+    id: 'p-perf',
+    codeBarre: '613000000016',
+    nom: 'Parfums Super Lab',
+    categorie: 'Jeux & Jouets',
+    prixAchat: 155,
+    prixVente: 225,
+    quantite: 7,
+    minStock: 2,
+    uniteMesure: 'À Vendre',
+    image: 'https://images.unsplash.com/photo-1523293182086-7651a899d37f?w=500&auto=format&fit=crop&q=80',
+    datePeremption: '2028-12-31',
+    lots: [
+      {
+        id: 'lot-perf-1',
+        nomLot: 'BATCH-2026-PERF',
+        quantite: 7,
+        prixAchat: 155,
+        prixVente: 225,
+        isDefault: true,
+      }
+    ]
+  },
+  {
+    id: 'p-sol',
+    codeBarre: '613000000017',
+    nom: 'Système Solaire 3D',
+    categorie: 'Jeux & Jouets',
+    prixAchat: 180,
+    prixVente: 260,
+    quantite: 8,
+    minStock: 2,
+    uniteMesure: 'À Vendre',
+    image: 'https://images.unsplash.com/photo-1614728894747-a83421e2b9c9?w=500&auto=format&fit=crop&q=80',
+    datePeremption: '2028-12-31',
+    lots: [
+      {
+        id: 'lot-sol-1',
+        nomLot: 'BATCH-2026-SOL',
+        quantite: 8,
+        prixAchat: 180,
+        prixVente: 260,
+        isDefault: true,
+      }
+    ]
+  },
+  {
+    id: 'p-corv',
+    codeBarre: '613000000018',
+    nom: 'Chevrolet Corvette ZR1',
+    categorie: 'Modélisme',
+    prixAchat: 160,
+    prixVente: 225,
+    quantite: 10,
+    minStock: 2,
+    uniteMesure: 'À Vendre',
+    image: 'https://images.unsplash.com/photo-1552519507-da3b142c6e3d?w=500&auto=format&fit=crop&q=80',
+    datePeremption: '2028-12-31',
+    lots: [
+      {
+        id: 'lot-corv-1',
+        nomLot: 'BATCH-2026-CORV',
+        quantite: 10,
+        prixAchat: 160,
+        prixVente: 225,
+        isDefault: true,
+      }
+    ]
+  },
+  {
+    id: 'p-dod',
+    codeBarre: '613000000019',
+    nom: 'Dodge Charger',
+    categorie: 'Modélisme',
+    prixAchat: 160,
+    prixVente: 225,
+    quantite: 8,
+    minStock: 2,
+    uniteMesure: 'À Vendre',
+    image: 'https://images.unsplash.com/photo-1584345604476-8ec5e12e42dd?w=500&auto=format&fit=crop&q=80',
+    datePeremption: '2028-12-31',
+    lots: [
+      {
+        id: 'lot-dod-1',
+        nomLot: 'BATCH-2026-DOD',
+        quantite: 8,
+        prixAchat: 160,
+        prixVente: 225,
+        isDefault: true,
+      }
+    ]
+  },
+  {
+    id: 'p-dod2',
+    codeBarre: '613000000020',
+    nom: 'Dodge Sports Car',
+    categorie: 'Modélisme',
+    prixAchat: 160,
+    prixVente: 225,
+    quantite: 6,
+    minStock: 2,
+    uniteMesure: 'À Vendre',
+    image: 'https://images.unsplash.com/photo-1617814076367-b759c7d7e738?w=500&auto=format&fit=crop&q=80',
+    datePeremption: '2028-12-31',
+    lots: [
+      {
+        id: 'lot-dod2-1',
+        nomLot: 'BATCH-2026-DOD2',
+        quantite: 6,
+        prixAchat: 160,
+        prixVente: 225,
+        isDefault: true,
+      }
+    ]
+  },
+  {
+    id: 'p-audi',
+    codeBarre: '613000000021',
+    nom: 'Audi Q4 e-tron',
+    categorie: 'Modélisme',
+    prixAchat: 160,
+    prixVente: 225,
+    quantite: 5,
+    minStock: 2,
+    uniteMesure: 'À Vendre',
+    image: 'https://images.unsplash.com/photo-1603584173870-7f23fdae1b7a?w=500&auto=format&fit=crop&q=80',
+    datePeremption: '2028-12-31',
+    lots: [
+      {
+        id: 'lot-audi-1',
+        nomLot: 'BATCH-2026-AUDI',
+        quantite: 5,
+        prixAchat: 160,
+        prixVente: 225,
+        isDefault: true,
+      }
+    ]
+  },
+  {
+    id: 'p-puzc',
+    codeBarre: '613000000022',
+    nom: 'Puzzle Collection',
+    categorie: 'Jeux & Jouets',
+    prixAchat: 120,
+    prixVente: 180,
+    quantite: 10,
+    minStock: 2,
+    uniteMesure: 'À Vendre',
+    image: 'https://images.unsplash.com/photo-1588693951525-6b66e3c1044a?w=500&auto=format&fit=crop&q=80',
+    datePeremption: '2028-12-31',
+    lots: [
+      {
+        id: 'lot-puzc-1',
+        nomLot: 'BATCH-2026-PUZC',
+        quantite: 10,
+        prixAchat: 120,
+        prixVente: 180,
+        isDefault: true,
+      }
+    ]
+  },
+  {
+    id: 'p-puze',
+    codeBarre: '613000000023',
+    nom: 'puzzle enfant',
+    categorie: 'Jeux & Jouets',
+    prixAchat: 100,
+    prixVente: 150,
+    quantite: 15,
+    minStock: 2,
+    uniteMesure: 'À Vendre',
+    image: 'https://images.unsplash.com/photo-1607604276583-eef5d076aa5f?w=500&auto=format&fit=crop&q=80',
+    datePeremption: '2028-12-31',
+    lots: [
+      {
+        id: 'lot-puze-1',
+        nomLot: 'BATCH-2026-PUZE',
+        quantite: 15,
+        prixAchat: 100,
+        prixVente: 150,
+        isDefault: true,
+      }
+    ]
+  },
+  {
+    id: 'p-puzd',
+    codeBarre: '613000000024',
+    nom: 'puzzle disney',
+    categorie: 'Jeux & Jouets',
+    prixAchat: 105,
+    prixVente: 150,
+    quantite: 30,
+    minStock: 2,
+    uniteMesure: 'Pièce',
+    image: 'https://images.unsplash.com/photo-1563089145-599997674d42?w=500&auto=format&fit=crop&q=80',
+    datePeremption: '2028-12-31',
+    variantes: [
+      {
+        id: 'v-disney-1',
+        nom: 'Format 1000 pcs',
+        codeBarre: '613000000024-1',
+        quantite: 30,
+        prixAchat: 105,
+        prixVente: 150,
+        actif: true
+      }
+    ],
+    lots: [
+      {
+        id: 'lot-puzd-1',
+        nomLot: 'BATCH-2026-PUZD',
+        quantite: 30,
+        prixAchat: 105,
+        prixVente: 150,
+        isDefault: true,
+      }
+    ]
+  },
+  {
+    id: 'p0',
+    codeBarre: '613000000000',
+    nom: 'puzzle tom et jerry',
+    categorie: 'Jeux & Jouets',
+    prixAchat: 95,
+    prixVente: 130,
+    quantite: 20,
+    minStock: 5,
+    uniteMesure: 'Pièce',
+    image: 'https://images.unsplash.com/photo-1587654780291-39c9404d746b?w=500&auto=format&fit=crop&q=80',
+    datePeremption: '2028-12-31',
+    variantes: [
+      {
+        id: 'v-tj-1',
+        nom: 'Format 500 pcs',
+        codeBarre: '613000000000-1',
+        quantite: 20,
+        prixAchat: 95,
+        prixVente: 130,
+        actif: true
+      }
+    ],
+    lots: [
+      {
+        id: 'lot-puzzle-1',
+        nomLot: 'BATCH-2026-TJ',
+        quantite: 20,
+        prixAchat: 95,
+        prixVente: 130,
+        prixVenteGros: 115,
+        datePeremption: '2028-12-31',
+        isDefault: true,
+      }
+    ]
+  },
+  {
     id: 'p1',
     codeBarre: '613000000001',
     nom: 'Jus d\'Orange 1L',
@@ -130,7 +522,19 @@ export const initialProducts: Product[] = [
     prixVente: 160,
     quantite: 45,
     minStock: 10,
+    uniteMesure: 'Pièce',
+    image: 'https://images.unsplash.com/photo-1613478223719-2ab802602423?w=500&auto=format&fit=crop&q=80',
     datePeremption: '2026-11-15',
+    lots: [
+      {
+        id: 'lot-p1-1',
+        nomLot: 'BATCH-2026-JUS',
+        quantite: 45,
+        prixAchat: 120,
+        prixVente: 160,
+        isDefault: true,
+      }
+    ]
   },
   {
     id: 'p2',
@@ -141,7 +545,19 @@ export const initialProducts: Product[] = [
     prixVente: 110,
     quantite: 8,
     minStock: 15,
+    uniteMesure: 'Pièce',
+    image: 'https://images.unsplash.com/photo-1550583724-b2692b85b150?w=500&auto=format&fit=crop&q=80',
     datePeremption: '2026-08-25',
+    lots: [
+      {
+        id: 'lot-p2-1',
+        nomLot: 'BATCH-2026-LAIT',
+        quantite: 8,
+        prixAchat: 90,
+        prixVente: 110,
+        isDefault: true,
+      }
+    ]
   },
   {
     id: 'p3',
@@ -152,7 +568,19 @@ export const initialProducts: Product[] = [
     prixVente: 280,
     quantite: 30,
     minStock: 5,
+    uniteMesure: 'Pièce',
+    image: 'https://images.unsplash.com/photo-1511381939415-e44015466834?w=500&auto=format&fit=crop&q=80',
     datePeremption: '2027-01-10',
+    lots: [
+      {
+        id: 'lot-p3-1',
+        nomLot: 'BATCH-2026-CHOC',
+        quantite: 30,
+        prixAchat: 200,
+        prixVente: 280,
+        isDefault: true,
+      }
+    ]
   },
   {
     id: 'p4',
@@ -163,6 +591,8 @@ export const initialProducts: Product[] = [
     prixVente: 50,
     quantite: 120,
     minStock: 20,
+    uniteMesure: 'Pièce',
+    image: 'https://images.unsplash.com/photo-1548839140-29a749e1bc4e?w=500&auto=format&fit=crop&q=80',
     datePeremption: '2027-06-30',
   },
   {
@@ -174,6 +604,8 @@ export const initialProducts: Product[] = [
     prixVente: 290,
     quantite: 4,
     minStock: 8,
+    uniteMesure: 'Pièce',
+    image: 'https://images.unsplash.com/photo-1486297678162-eb2a19b0a32d?w=500&auto=format&fit=crop&q=80',
     datePeremption: '2026-09-05',
   },
   {
@@ -185,6 +617,8 @@ export const initialProducts: Product[] = [
     prixVente: 1350,
     quantite: 18,
     minStock: 5,
+    uniteMesure: 'Pièce',
+    image: 'https://images.unsplash.com/photo-1474979266404-7eaacbcd87c5?w=500&auto=format&fit=crop&q=80',
     datePeremption: '2028-03-20',
   },
 ];

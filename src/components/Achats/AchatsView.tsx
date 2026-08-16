@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   ShoppingBag,
   Plus,
+  PlusCircle,
   ArrowLeft,
   Save,
   Search,
@@ -23,9 +24,11 @@ import {
   ChevronRight,
   Sparkles,
   Percent,
+  SlidersHorizontal,
 } from 'lucide-react';
 import { PurchaseInvoice, PurchaseInvoiceItem, Supplier, Product } from '../../types';
 import { useLanguage } from '../../lib/i18n';
+import { CreatableSelect } from '../common/CreatableSelect';
 
 interface AchatsViewProps {
   invoices: PurchaseInvoice[];
@@ -99,6 +102,16 @@ export const AchatsView: React.FC<AchatsViewProps> = ({
   const [newProdBaseQtyInMajor, setNewProdBaseQtyInMajor] = useState('');
   const [hasVariants, setHasVariants] = useState(false);
   const [modalFormError, setModalFormError] = useState('');
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (toastMessage) {
+      const timer = setTimeout(() => {
+        setToastMessage(null);
+      }, 4000);
+      return () => clearTimeout(timer);
+    }
+  }, [toastMessage]);
 
   // Helper to open create view
   const openCreateInvoice = () => {
@@ -799,17 +812,17 @@ export const AchatsView: React.FC<AchatsViewProps> = ({
       {/* ================= NEW PRODUCT MODAL (SCREENSHOTS 3, 4, 5, 6) ================= */}
       {showNewProductModal && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
-          <div className="bg-white dark:bg-slate-800 rounded-3xl p-6 sm:p-8 max-w-2xl w-full space-y-6 shadow-2xl border border-slate-200 dark:border-slate-700 my-8 max-h-[90vh] overflow-y-auto">
+          <div className="bg-white dark:bg-slate-800 rounded-3xl max-w-4xl w-full shadow-2xl border border-slate-200 dark:border-slate-700 my-8 max-h-[90vh] overflow-hidden flex flex-col">
             {/* Header */}
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-700">
-              <h3 className="font-extrabold text-slate-900 dark:text-white text-lg">
+            <div className="px-8 py-6 border-b border-slate-100 dark:border-slate-700 flex items-center justify-between">
+              <h3 className="font-black text-slate-900 dark:text-white text-xl">
                 {t('stock.addProduct', 'Ajouter un Nouveau Produit')}
               </h3>
 
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-3">
                 <button
                   onClick={handleSaveProductFromModal}
-                  className="px-5 py-2 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs shadow-md shadow-emerald-600/30 flex items-center gap-1.5 active:scale-95 transition-all cursor-pointer"
+                  className="px-5 py-2.5 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs shadow-sm flex items-center gap-1.5 active:scale-95 transition-all cursor-pointer"
                 >
                   <Save className="w-4 h-4" />
                   <span>{t('stock.saveProduct', 'Enregistrer le produit')}</span>
@@ -817,30 +830,22 @@ export const AchatsView: React.FC<AchatsViewProps> = ({
 
                 <button
                   onClick={() => setShowNewProductModal(false)}
-                  className="p-2 rounded-2xl text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 cursor-pointer"
+                  className="w-8 h-8 rounded-full text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 flex items-center justify-center transition-all cursor-pointer"
                 >
                   <X className="w-5 h-5" />
                 </button>
               </div>
             </div>
 
-            {/* Error banner */}
-            {modalFormError && (
-              <div className="p-3.5 rounded-2xl bg-red-50 border border-red-200 text-red-700 text-xs font-bold flex items-center gap-2">
-                <AlertCircle className="w-4 h-4 shrink-0 text-red-600" />
-                <span>{modalFormError}</span>
-              </div>
-            )}
-
-            {/* 3 Tabs Header (Matching Screenshot 3) */}
-            <div className="flex items-center gap-2 border-b border-slate-100 dark:border-slate-700 pb-2">
+            {/* 3 Tabs Header (Matching Screenshot) */}
+            <div className="flex items-center gap-3 px-8 pt-4 pb-4 border-b border-slate-100 dark:border-slate-700/80 bg-white dark:bg-slate-800">
               <button
                 type="button"
                 onClick={() => setActiveProductTab('base')}
-                className={`flex items-center gap-2 px-4 py-2.5 rounded-2xl font-extrabold text-xs transition-all cursor-pointer ${
+                className={`flex items-center gap-2 px-5 py-2.5 rounded-2xl font-extrabold text-xs transition-all cursor-pointer ${
                   activeProductTab === 'base'
-                    ? 'bg-blue-50 text-blue-600 border border-blue-200 dark:bg-blue-950/60 dark:text-blue-300 dark:border-blue-800'
-                    : 'text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-700/50'
+                    ? 'bg-blue-50/90 dark:bg-blue-950/50 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-800 shadow-none'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white font-bold'
                 }`}
               >
                 <Info className="w-4 h-4" />
@@ -850,60 +855,76 @@ export const AchatsView: React.FC<AchatsViewProps> = ({
               <button
                 type="button"
                 onClick={() => setActiveProductTab('properties')}
-                className={`flex items-center gap-2 px-4 py-2.5 rounded-2xl font-extrabold text-xs transition-all cursor-pointer ${
+                className={`flex items-center gap-2 px-5 py-2.5 rounded-2xl font-extrabold text-xs transition-all cursor-pointer ${
                   activeProductTab === 'properties'
-                    ? 'bg-blue-50 text-blue-600 border border-blue-200 dark:bg-blue-950/60 dark:text-blue-300 dark:border-blue-800'
-                    : 'text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-700/50'
+                    ? 'bg-blue-50/90 dark:bg-blue-950/50 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-800 shadow-none'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white font-bold'
                 }`}
               >
-                <Layers className="w-4 h-4" />
+                <SlidersHorizontal className="w-4 h-4" />
                 <span>{t('stock.propertiesAndPrices', 'Propriétés & tarifs')}</span>
               </button>
 
               <button
                 type="button"
                 onClick={() => setActiveProductTab('variants')}
-                className={`flex items-center gap-2 px-4 py-2.5 rounded-2xl font-extrabold text-xs transition-all cursor-pointer ${
+                className={`flex items-center gap-2 px-5 py-2.5 rounded-2xl font-extrabold text-xs transition-all cursor-pointer ${
                   activeProductTab === 'variants'
-                    ? 'bg-blue-50 text-blue-600 border border-blue-200 dark:bg-blue-950/60 dark:text-blue-300 dark:border-blue-800'
-                    : 'text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-700/50'
+                    ? 'bg-blue-50/90 dark:bg-blue-950/50 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-800 shadow-none'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white font-bold'
                 }`}
               >
-                <Tag className="w-4 h-4" />
+                <Layers className="w-4 h-4" />
                 <span>{t('stock.variantsAndColors', 'Variantes & couleurs')}</span>
               </button>
             </div>
 
+            {/* Error banner */}
+            {modalFormError && (
+              <div className="mx-8 mt-4 p-3.5 rounded-2xl bg-red-50 border border-red-200 text-red-700 text-xs font-bold flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 shrink-0 text-red-600" />
+                <span>{modalFormError}</span>
+              </div>
+            )}
+
+            <div className="p-8 space-y-6 overflow-y-auto custom-scrollbar flex-1 max-h-[75vh]">
             {/* TAB 1: INFOS DE BASE (Screenshots 3 & 4) */}
             {activeProductTab === 'base' && (
-              <div className="space-y-4">
+              <div className="space-y-5">
                 {/* Code-barres & Extra Code-barres */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-1">
-                    <label className="text-[11px] font-extrabold text-slate-700 dark:text-slate-300">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
+                  <div className="space-y-2">
+                    <label className="text-xs font-extrabold text-slate-700 dark:text-slate-300">
                       {t('stock.barcode', 'Code-barres')}
                     </label>
-                    <div className="relative flex items-center">
+                    <div className="flex items-center gap-2">
                       <input
                         type="text"
                         value={newProdBarcode}
                         onChange={(e) => setNewProdBarcode(e.target.value)}
-                        className={`w-full h-11 ${isRTL ? 'pr-4 pl-12' : 'pl-4 pr-12'} rounded-2xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white text-xs font-mono font-bold focus:outline-none`}
+                        placeholder="Code-barres principal"
+                        className="flex-1 h-12 px-4 rounded-2xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white text-xs font-mono font-bold focus:outline-none focus:ring-2 focus:ring-blue-500/20"
                       />
                       <button
                         type="button"
-                        onClick={generateNewBarcode}
-                        className={`absolute ${isRTL ? 'left-2' : 'right-2'} p-1.5 rounded-xl bg-slate-200 hover:bg-slate-300 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 cursor-pointer`}
+                        onClick={() => {
+                          if (!newProdName.trim()) {
+                            setToastMessage("Veuillez d'abord saisir un nom de produit.");
+                            return;
+                          }
+                          generateNewBarcode();
+                        }}
+                        className="h-12 w-12 shrink-0 rounded-2xl bg-blue-50 hover:bg-blue-100 text-blue-600 dark:bg-blue-950/60 dark:text-blue-400 border border-blue-200/80 dark:border-blue-800/80 flex items-center justify-center transition-all shadow-sm cursor-pointer"
                         title={t('stock.generateBarcode', 'Générer un code-barres')}
                       >
-                        <Barcode className="w-4 h-4" />
+                        <Barcode className="w-5 h-5" />
                       </button>
                     </div>
                   </div>
 
                   {/* Extra Barcodes Card */}
-                  <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-700 space-y-2">
-                    <label className="text-[11px] font-extrabold text-slate-700 dark:text-slate-300 block">
+                  <div className="p-3.5 rounded-2xl bg-slate-50/60 dark:bg-slate-900/60 border border-slate-200/80 dark:border-slate-700 space-y-3">
+                    <label className="text-xs font-extrabold text-slate-700 dark:text-slate-300 block">
                       {t('stock.extraBarcodes', 'Codes-barres Supplémentaires (Optionnel)')}
                     </label>
                     <button
@@ -911,12 +932,12 @@ export const AchatsView: React.FC<AchatsViewProps> = ({
                       onClick={() =>
                         setExtraBarcodes([...extraBarcodes, `2026${Date.now().toString().slice(-6)}`])
                       }
-                      className="w-full py-2 border-2 border-dashed border-blue-300 dark:border-blue-700 rounded-xl text-blue-600 dark:text-blue-400 font-extrabold text-xs flex items-center justify-center gap-1 hover:bg-blue-50/50 transition-all cursor-pointer"
+                      className="w-full h-11 px-4 rounded-2xl bg-white dark:bg-slate-800 border border-blue-200 dark:border-blue-700 text-blue-600 dark:text-blue-400 font-bold text-xs flex items-center justify-center gap-2 hover:bg-blue-50/50 shadow-sm transition-all cursor-pointer"
                     >
-                      <Plus className="w-3.5 h-3.5" />
+                      <PlusCircle className="w-4 h-4 text-blue-600 dark:text-blue-400" />
                       <span>{t('stock.addBarcode', '+ Ajouter un Code-barres')}</span>
                     </button>
-                    <p className="text-[10px] text-slate-400 leading-tight">
+                    <p className="text-[11px] text-slate-400 leading-tight">
                       {t('stock.uniqueBarcodeNote', 'Remarque : Chaque code-barres doit être unique.')}
                     </p>
                   </div>
@@ -938,42 +959,24 @@ export const AchatsView: React.FC<AchatsViewProps> = ({
                     />
                   </div>
 
-                  <div className="space-y-1">
-                    <label className="text-[11px] font-extrabold text-slate-700 dark:text-slate-300">
-                      {t('stock.category', 'Catégorie')}
-                    </label>
-                    <div className="relative">
-                      <input
-                        type="text"
-                        list="achats-categories-list"
-                        value={newProdCategory}
-                        onChange={(e) => setNewProdCategory(e.target.value)}
-                        placeholder={t('stock.chooseCategory', 'Saisir ou choisir une catégorie...')}
-                        className="w-full h-11 px-4 rounded-2xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white text-xs font-bold focus:outline-none focus:ring-2 focus:ring-blue-500/30"
-                      />
-                      <datalist id="achats-categories-list">
-                        {categories.map((cat) => (
-                          <option key={cat} value={cat} />
-                        ))}
-                      </datalist>
-                    </div>
-                  </div>
+                  <CreatableSelect
+                    label={t('stock.category', 'Catégorie')}
+                    value={newProdCategory}
+                    onChange={setNewProdCategory}
+                    options={categories}
+                    placeholder={t('stock.chooseCategory', 'Saisir ou choisir une catégorie...')}
+                  />
                 </div>
 
                 {/* Famille & Fournisseur */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-1">
-                    <label className="text-[11px] font-extrabold text-slate-700 dark:text-slate-300">
-                      {t('stock.family', 'Famille')}
-                    </label>
-                    <input
-                      type="text"
-                      value={newProdFamily}
-                      onChange={(e) => setNewProdFamily(e.target.value)}
-                      placeholder="Exemple : Famille Coca-Cola"
-                      className="w-full h-11 px-4 rounded-2xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white text-xs font-medium focus:outline-none"
-                    />
-                  </div>
+                  <CreatableSelect
+                    label={t('stock.family', 'Famille')}
+                    value={newProdFamily}
+                    onChange={setNewProdFamily}
+                    options={Array.from(new Set(products.map((p) => p.famille).filter((f): f is string => Boolean(f))))}
+                    placeholder="Exemple : Famille Coca-Cola"
+                  />
 
                   <div className="space-y-1">
                     <label className="text-[11px] font-extrabold text-slate-700 dark:text-slate-300">
@@ -1315,7 +1318,25 @@ export const AchatsView: React.FC<AchatsViewProps> = ({
                 )}
               </div>
             )}
+            </div>
           </div>
+        </div>
+      )}
+
+      {/* Floating Toast Notification (Matching Screenshot 2) */}
+      {toastMessage && (
+        <div className="fixed bottom-6 right-6 z-[9999] flex items-center gap-3 px-5 py-3.5 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 rounded-2xl shadow-2xl border border-slate-200/80 dark:border-slate-700 animate-in fade-in slide-in-from-bottom-5 duration-300">
+          <div className="w-8 h-8 rounded-full bg-blue-50 dark:bg-blue-950/60 flex items-center justify-center text-blue-600 dark:text-blue-400 shrink-0">
+            <Info className="w-4 h-4" />
+          </div>
+          <span className="text-xs sm:text-sm font-bold">{toastMessage}</span>
+          <button
+            type="button"
+            onClick={() => setToastMessage(null)}
+            className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 ml-2 cursor-pointer p-1"
+          >
+            <X className="w-4 h-4" />
+          </button>
         </div>
       )}
     </div>

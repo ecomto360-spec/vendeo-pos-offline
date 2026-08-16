@@ -51,6 +51,24 @@ export interface ProductVariant {
   actif: boolean;
 }
 
+export interface ExtraBarcode {
+  codeBarre: string;
+  typePrix: string;
+}
+
+export interface ProductLot {
+  id: string;
+  nomLot?: string; // e.g. "BATCH-1" or "Lot de janvier"
+  quantite: number;
+  prixAchat: number;
+  prixVente: number;
+  prixVenteGros?: number;
+  margePourcent?: number;
+  datePeremption?: string;
+  fournisseurNom?: string;
+  isDefault?: boolean;
+}
+
 export interface ProductOptionGroup {
   id: string;
   nom: string; // e.g., "Taille", "Couleur"
@@ -61,6 +79,7 @@ export interface Product {
   id: string;
   codeBarre: string;
   codesBarresSupp?: string[];
+  codesBarresSuppList?: ExtraBarcode[];
   nom: string;
   categorie: string;
   famille?: string;
@@ -74,6 +93,8 @@ export interface Product {
   emplacement?: string;
   description?: string;
   image?: string;
+  isFavorite?: boolean;
+  lots?: ProductLot[];
   
   // Nouveaux champs (Propriétés & tarifs)
   uniteMesure?: string;

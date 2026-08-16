@@ -19,7 +19,8 @@ import {
   Globe,
   Download,
   Wifi,
-  WifiOff
+  WifiOff,
+  Menu
 } from 'lucide-react';
 import { getLicenseStatus, LicenseStatus } from '../lib/license';
 import { AppUser, Language } from '../types';
@@ -45,6 +46,7 @@ interface HeaderProps {
   onOpenActivation?: () => void;
   onOpenOffer?: () => void;
   onOpenHelp?: () => void;
+  onOpenMobileMenu?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -64,6 +66,7 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenActivation,
   onOpenOffer,
   onOpenHelp = () => {},
+  onOpenMobileMenu,
 }) => {
   const { language: ctxLanguage, setLanguage: ctxSetLanguage, t } = useLanguage();
   const { isInstallable, triggerInstall } = usePwaInstall();
@@ -104,17 +107,29 @@ export const Header: React.FC<HeaderProps> = ({
   };
 
   return (
-    <header className="sticky top-0 z-20 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md border-b border-slate-200/80 dark:border-slate-800 px-6 py-2.5 flex items-center justify-between gap-4">
-      {/* Search Input & Dynamic Trial/License Badge */}
-      <div className="flex items-center gap-3 flex-1 max-w-md">
+    <header className="sticky top-0 z-20 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md border-b border-slate-200/80 dark:border-slate-800 px-3 sm:px-6 py-2 sm:py-2.5 flex items-center justify-between gap-2 sm:gap-4">
+      {/* Mobile Menu Hamburger + Search Bar */}
+      <div className="flex items-center gap-2 sm:gap-3 flex-1 max-w-md">
+        {/* Mobile Hamburger Toggle Button */}
+        {onOpenMobileMenu && (
+          <button
+            type="button"
+            onClick={onOpenMobileMenu}
+            className="lg:hidden p-2 rounded-xl text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors shrink-0"
+            title="Ouvrir le menu de navigation"
+          >
+            <Menu className="w-5 h-5 stroke-[2.5]" />
+          </button>
+        )}
+
         <div className="relative w-full">
-          <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
           <input
             type="text"
             value={searchTerm}
             onChange={(e) => onSearchChange(e.target.value)}
             placeholder={t('header.search')}
-            className="w-full pl-10 pr-4 py-2 text-sm bg-slate-100/80 dark:bg-slate-800/80 border border-slate-200/80 dark:border-slate-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:bg-white dark:focus:bg-slate-900 text-slate-800 dark:text-slate-100 placeholder-slate-400 transition-all"
+            className="w-full pl-9 pr-3 py-1.5 sm:py-2 text-xs sm:text-sm bg-slate-100/80 dark:bg-slate-800/80 border border-slate-200/80 dark:border-slate-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:bg-white dark:focus:bg-slate-900 text-slate-800 dark:text-slate-100 placeholder-slate-400 transition-all"
           />
         </div>
 
@@ -143,7 +158,7 @@ export const Header: React.FC<HeaderProps> = ({
       </div>
 
       {/* Right Header Controls */}
-      <div className="flex items-center gap-2 shrink-0">
+      <div className="flex items-center gap-1 sm:gap-2 shrink-0">
         {/* Connection Mode Indicator */}
         <div
           title={isOnline ? "En ligne - Synchronisé" : "Mode Hors-ligne (IndexedDB actif)"}
@@ -170,7 +185,7 @@ export const Header: React.FC<HeaderProps> = ({
         <button
           onClick={toggleFullscreen}
           title="Plein écran"
-          className="p-2 rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+          className="hidden md:flex p-2 rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
         >
           <Maximize2 className="w-4 h-4" />
         </button>
@@ -179,7 +194,7 @@ export const Header: React.FC<HeaderProps> = ({
         <button
           onClick={onOpenHelp}
           title="Aide & Documentation"
-          className="p-2 rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+          className="hidden md:flex p-2 rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
         >
           <HelpCircle className="w-4 h-4" />
         </button>
@@ -188,7 +203,7 @@ export const Header: React.FC<HeaderProps> = ({
         <button
           onClick={handleOpenTutorials}
           title="Tutoriels Vidéo"
-          className="relative p-2 rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+          className="hidden sm:flex relative p-2 rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
         >
           <PlayCircle className="w-4 h-4 text-red-500 fill-red-500/10" />
           <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white font-bold text-[10px] rounded-full flex items-center justify-center shadow-sm">
@@ -200,7 +215,7 @@ export const Header: React.FC<HeaderProps> = ({
         <button
           onClick={onOpenShortcuts}
           title="Raccourcis clavier"
-          className="p-2 rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+          className="hidden sm:flex p-2 rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
         >
           <Keyboard className="w-4 h-4" />
         </button>
@@ -208,7 +223,7 @@ export const Header: React.FC<HeaderProps> = ({
         {/* Notifications Bell */}
         <button
           title="Notifications"
-          className="relative p-2 rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+          className="hidden sm:flex relative p-2 rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
         >
           <Bell className="w-4 h-4" />
           <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-blue-600 rounded-full"></span>
@@ -220,7 +235,7 @@ export const Header: React.FC<HeaderProps> = ({
             type="button"
             onClick={triggerInstall}
             title="Installer l'application Vendeo POS sur votre PC / mobile"
-            className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white shadow-md text-xs font-extrabold active:scale-95 transition-all animate-pulse"
+            className="flex items-center gap-2 px-2.5 sm:px-3 py-1.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white shadow-md text-xs font-extrabold active:scale-95 transition-all animate-pulse"
           >
             <Download className="w-4 h-4" />
             <span className="hidden xl:inline">Installer l'application</span>
@@ -240,8 +255,8 @@ export const Header: React.FC<HeaderProps> = ({
         </button>
 
         {/* Language Selector Dropdown */}
-        <div className="relative flex items-center ml-1">
-          <Globe className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400 absolute left-2.5 pointer-events-none" />
+        <div className="relative flex items-center ml-0.5">
+          <Globe className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400 absolute left-2 pointer-events-none" />
           <select
             value={activeLanguage}
             onChange={(e) => {
@@ -250,7 +265,7 @@ export const Header: React.FC<HeaderProps> = ({
               ctxSetLanguage(lang);
             }}
             title={t('header.language')}
-            className="pl-7 pr-2 py-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700/80 border border-slate-200/80 dark:border-slate-700 rounded-xl text-xs font-black text-slate-800 dark:text-slate-100 focus:outline-none cursor-pointer transition-all shadow-sm"
+            className="pl-6.5 pr-1.5 py-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700/80 border border-slate-200/80 dark:border-slate-700 rounded-xl text-xs font-black text-slate-800 dark:text-slate-100 focus:outline-none cursor-pointer transition-all shadow-sm"
           >
             <option value="fr" className="bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100">FR 🇫🇷</option>
             <option value="ar" className="bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100">العربية 🇩🇿</option>
@@ -262,13 +277,13 @@ export const Header: React.FC<HeaderProps> = ({
         <button
           onClick={handleToggleDark}
           title={isDark ? "Passer en mode clair" : "Passer en mode sombre"}
-          className="p-2 rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors ml-1"
+          className="p-2 rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
         >
           {isDark ? <Sun className="w-4 h-4 text-amber-400" /> : <Moon className="w-4 h-4" />}
         </button>
 
         {/* User Session & Logout Action */}
-        <div className="flex items-center gap-2 pl-2 border-l border-slate-200 dark:border-slate-800 ml-1">
+        <div className="flex items-center gap-1.5 sm:gap-2 pl-1 sm:pl-2 border-l border-slate-200 dark:border-slate-800">
           <div className="hidden sm:flex flex-col text-right leading-tight">
             <span className="text-xs font-bold text-slate-900 dark:text-white flex items-center justify-end gap-1">
               {isSuperAdminAuthenticated() ? (
@@ -289,7 +304,7 @@ export const Header: React.FC<HeaderProps> = ({
             type="button"
             onClick={onLogout}
             title="Se déconnecter de la session"
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-red-50 hover:bg-red-100 dark:bg-red-950/60 dark:hover:bg-red-900/80 text-red-600 dark:text-red-400 text-xs font-bold border border-red-200 dark:border-red-800 transition-all active:scale-95 shadow-sm cursor-pointer"
+            className="flex items-center gap-1 px-2.5 sm:px-3 py-1.5 rounded-xl bg-red-50 hover:bg-red-100 dark:bg-red-950/60 dark:hover:bg-red-900/80 text-red-600 dark:text-red-400 text-xs font-bold border border-red-200 dark:border-red-800 transition-all active:scale-95 shadow-sm cursor-pointer"
           >
             <LogOut className="w-3.5 h-3.5" />
             <span className="hidden md:inline">{t('header.logout')}</span>

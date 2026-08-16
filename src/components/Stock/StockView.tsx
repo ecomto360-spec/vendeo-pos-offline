@@ -1,12 +1,20 @@
-import React, { useState } from 'react';
-import { Search, Plus, Boxes, AlertTriangle, Trash2, Edit2, SlidersHorizontal, Barcode, X, Check, Save, Info, Tag, Palette, Package, Image as ImageIcon, Copy, PlusCircle, Columns, Layers, X, ChevronDown } from 'lucide-react';
-import { Product, Supplier, ProductPriceExtra, ProductVariant, ProductOptionGroup } from '../../types';
+import React, { useState, useEffect } from 'react';
+import { 
+  Search, Plus, Boxes, AlertTriangle, Trash2, Edit2, SlidersHorizontal, 
+  Barcode, X, Check, Save, Info, Tag, Palette, Package, Image as ImageIcon, 
+  Copy, PlusCircle, Columns, Layers, ChevronDown, Printer, Star, TrendingUp, 
+  DollarSign, Calendar, Clock, ShoppingCart, Percent, ArrowUpRight, Activity, 
+  Banknote, Hourglass, CalendarDays
+} from 'lucide-react';
+import { Product, Supplier, ProductPriceExtra, ProductVariant, ProductOptionGroup, ExtraBarcode, ProductLot, Sale } from '../../types';
 import { useLanguage } from '../../lib/i18n';
+import { CreatableSelect } from '../common/CreatableSelect';
 
 interface StockViewProps {
   products: Product[];
   categories: string[];
   suppliers?: Supplier[];
+  sales?: Sale[];
   onAddProduct: (product: Omit<Product, 'id'> | Product) => void;
   onUpdateProduct?: (product: Product) => void;
   onDeleteProduct: (id: string) => void;
@@ -16,6 +24,7 @@ export const StockView: React.FC<StockViewProps> = ({
   products,
   categories,
   suppliers = [],
+  sales = [],
   onAddProduct,
   onUpdateProduct,
   onDeleteProduct,
@@ -37,10 +46,25 @@ export const StockView: React.FC<StockViewProps> = ({
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [activeTab, setActiveTab] = useState<'base' | 'tarifs' | 'variantes'>('base');
 
+  // Gérer les Lots Modal State (Screenshot 2)
+  const [managingLotsProduct, setManagingLotsProduct] = useState<Product | null>(null);
+  const [newLotName, setNewLotName] = useState('');
+  const [newLotQty, setNewLotQty] = useState('');
+  const [newLotCostPrice, setNewLotCostPrice] = useState('');
+  const [newLotMargin, setNewLotMargin] = useState('');
+  const [newLotRetailPrice, setNewLotRetailPrice] = useState('');
+  const [newLotWholesalePrice, setNewLotWholesalePrice] = useState('');
+  const [newLotExpiry, setNewLotExpiry] = useState('');
+  const [newLotSupplier, setNewLotSupplier] = useState('');
+  const [editingLotId, setEditingLotId] = useState<string | null>(null);
+
+  // Statistiques du Produit Modal State (Screenshot 4)
+  const [statsProduct, setStatsProduct] = useState<Product | null>(null);
+
   // Form State
   const [nom, setNom] = useState('');
   const [codeBarre, setCodeBarre] = useState('');
-  const [extraBarcodes, setExtraBarcodes] = useState<string[]>([]);
+  const [extraBarcodes, setExtraBarcodes] = useState<ExtraBarcode[]>([]);
   const [categorie, setCategorie] = useState('');
   const [famille, setFamille] = useState('');
   const [fournisseurNom, setFournisseurNom] = useState('');
@@ -48,6 +72,49 @@ export const StockView: React.FC<StockViewProps> = ({
   const [emplacement, setEmplacement] = useState('');
   const [description, setDescription] = useState('');
   const [image, setImage] = useState('');
+
+  // Print Barcode Modal State
+  const [showPrintModal, setShowPrintModal] = useState(false);
+  const [printBarcode, setPrintBarcode] = useState('');
+  const [printProductName, setPrintProductName] = useState('');
+  const [printPriceType, setPrintPriceType] = useState('Détail');
+  const [printPrice, setPrintPrice] = useState('0');
+  const [printLabelCount, setPrintLabelCount] = useState(1);
+  const [printLabelSize, setPrintLabelSize] = useState('50 × 30 mm');
+  const [autoHeight, setAutoHeight] = useState(true);
+  const [labelContent, setLabelContent] = useState({
+    storeName: false,
+    productName: true,
+    price: false,
+    priceType: false,
+    barcodeNumber: true,
+    variants: false,
+    discount: false,
+  });
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (toastMessage) {
+      const timer = setTimeout(() => {
+        setToastMessage(null);
+      }, 4000);
+      return () => clearTimeout(timer);
+    }
+  }, [toastMessage]);
+
+  const openPrintBarcodeModal = (code: string, pName?: string, priceType: string = 'Détail', priceVal?: number | string) => {
+    const nameToUse = pName !== undefined ? pName : nom;
+    if (!nameToUse || !nameToUse.trim()) {
+      setToastMessage("Veuillez d'abord saisir un nom de produit.");
+      return;
+    }
+    setPrintBarcode(code || codeBarre || `2026${Math.floor(10000000 + Math.random() * 90000000)}`);
+    setPrintProductName(nameToUse.trim());
+    setPrintPriceType(priceType || 'Détail');
+    const priceToUse = priceVal !== undefined ? priceVal.toString() : (priceType === 'Gros' && prixVenteGros ? prixVenteGros : prixVente);
+    setPrintPrice(priceToUse || '0');
+    setShowPrintModal(true);
+  };
 
   // Lot Initial / Prices
   const [quantite, setQuantite] = useState('0');
@@ -86,7 +153,7 @@ export const StockView: React.FC<StockViewProps> = ({
     setEditingProduct(null);
     setActiveTab('base');
     setNom('');
-    setCodeBarre(Math.floor(100000000000 + Math.random() * 900000000000).toString());
+    setCodeBarre(`2026${Math.floor(10000000 + Math.random() * 90000000)}`);
     setExtraBarcodes([]);
     setCategorie(categories[0] || '');
     setFamille('');
@@ -121,7 +188,17 @@ export const StockView: React.FC<StockViewProps> = ({
     setActiveTab('base');
     setNom(p.nom || '');
     setCodeBarre(p.codeBarre || '');
-    setExtraBarcodes(p.codesBarresSupp || []);
+    if (p.codesBarresSuppList && p.codesBarresSuppList.length > 0) {
+      setExtraBarcodes(p.codesBarresSuppList);
+    } else if (p.codesBarresSupp && p.codesBarresSupp.length > 0) {
+      setExtraBarcodes(
+        p.codesBarresSupp.map((c: any) =>
+          typeof c === 'string' ? { codeBarre: c, typePrix: 'Détail' } : c
+        )
+      );
+    } else {
+      setExtraBarcodes([]);
+    }
     setCategorie(p.categorie || '');
     setFamille(p.famille || '');
     setFournisseurNom(p.fournisseurNom || '');
@@ -151,12 +228,12 @@ export const StockView: React.FC<StockViewProps> = ({
   };
 
   const generateBarcode = () => {
-    setCodeBarre(Math.floor(100000000000 + Math.random() * 900000000000).toString());
+    setCodeBarre(`2026${Math.floor(10000000 + Math.random() * 90000000)}`);
   };
 
   const handleAddExtraBarcode = () => {
     const newCode = Math.floor(100000000000 + Math.random() * 900000000000).toString();
-    setExtraBarcodes([...extraBarcodes, newCode]);
+    setExtraBarcodes([...extraBarcodes, { codeBarre: newCode, typePrix: 'Détail' }]);
   };
 
   const applyMargin = (percent: number) => {
@@ -187,7 +264,8 @@ export const StockView: React.FC<StockViewProps> = ({
     const pData: Omit<Product, 'id'> = {
       nom: nom.trim(),
       codeBarre: codeBarre.trim() || Math.floor(100000000000 + Math.random() * 900000000000).toString(),
-      codesBarresSupp: extraBarcodes,
+      codesBarresSupp: extraBarcodes.map((b) => b.codeBarre),
+      codesBarresSuppList: extraBarcodes,
       categorie: categorie.trim() || 'Général',
       famille: famille.trim(),
       fournisseurNom: fournisseurNom.trim(),
@@ -214,7 +292,12 @@ export const StockView: React.FC<StockViewProps> = ({
     };
 
     if (editingProduct) {
-      const updated: Product = { ...pData, id: editingProduct.id };
+      const updated: Product = { 
+        ...pData, 
+        id: editingProduct.id,
+        isFavorite: editingProduct.isFavorite || false,
+        lots: editingProduct.lots || [],
+      };
       if (onUpdateProduct) {
         onUpdateProduct(updated);
       } else {
@@ -225,6 +308,187 @@ export const StockView: React.FC<StockViewProps> = ({
     }
 
     setShowModal(false);
+  };
+
+  // Toggle favorite
+  const handleToggleFavorite = (p: Product) => {
+    const updated = { ...p, isFavorite: !p.isFavorite };
+    if (onUpdateProduct) onUpdateProduct(updated);
+  };
+
+  // Open Lots Management Modal (Screenshot 2)
+  const openLotsModal = (p: Product) => {
+    let lotsToUse = p.lots && p.lots.length > 0 ? p.lots : [];
+    if (lotsToUse.length === 0) {
+      lotsToUse = [
+        {
+          id: `lot-1`,
+          nomLot: 'BATCH-1',
+          quantite: p.quantite !== undefined ? p.quantite : 5,
+          prixAchat: p.prixAchat || 0,
+          prixVente: p.prixVente || 0,
+          prixVenteGros: p.prixVenteGros,
+          datePeremption: p.datePeremption || '2026-08-16',
+          fournisseurNom: p.fournisseurNom || '',
+          isDefault: true,
+        },
+      ];
+      const updatedP = { ...p, lots: lotsToUse };
+      if (onUpdateProduct) onUpdateProduct(updatedP);
+      setManagingLotsProduct(updatedP);
+    } else {
+      setManagingLotsProduct(p);
+    }
+
+    // Reset new lot form
+    setNewLotName('');
+    setNewLotQty('');
+    setNewLotCostPrice('');
+    setNewLotMargin('');
+    setNewLotRetailPrice('');
+    setNewLotWholesalePrice('');
+    setNewLotExpiry('');
+    setNewLotSupplier('');
+    setEditingLotId(null);
+  };
+
+  const handleLotMarginChange = (percentStr: string) => {
+    setNewLotMargin(percentStr);
+    const percent = parseFloat(percentStr);
+    const pa = parseFloat(newLotCostPrice) || 0;
+    if (!isNaN(percent) && pa > 0) {
+      const calculated = Math.round(pa * (1 + percent / 100));
+      setNewLotRetailPrice(calculated.toString());
+    }
+  };
+
+  const handleLotCostChange = (costStr: string) => {
+    setNewLotCostPrice(costStr);
+    const cost = parseFloat(costStr) || 0;
+    const percent = parseFloat(newLotMargin);
+    if (!isNaN(percent) && cost > 0) {
+      const calculated = Math.round(cost * (1 + percent / 100));
+      setNewLotRetailPrice(calculated.toString());
+    }
+  };
+
+  const handleAddOrUpdateLot = () => {
+    if (!managingLotsProduct) return;
+    const qty = parseInt(newLotQty) || 0;
+    if (qty <= 0 && !editingLotId) {
+      setToastMessage('Veuillez entrer une quantité valide pour le lot.');
+      return;
+    }
+    const cost = parseFloat(newLotCostPrice) || 0;
+    const retail = parseFloat(newLotRetailPrice) || 0;
+    const wholesale = newLotWholesalePrice ? parseFloat(newLotWholesalePrice) : undefined;
+    const margin = newLotMargin ? parseFloat(newLotMargin) : undefined;
+
+    let updatedLots: ProductLot[] = [...(managingLotsProduct.lots || [])];
+
+    if (editingLotId) {
+      updatedLots = updatedLots.map((l) =>
+        l.id === editingLotId
+          ? {
+              ...l,
+              nomLot: newLotName.trim() || l.nomLot || `BATCH-${updatedLots.length}`,
+              quantite: qty,
+              prixAchat: cost,
+              prixVente: retail,
+              prixVenteGros: wholesale,
+              margePourcent: margin,
+              datePeremption: newLotExpiry || undefined,
+              fournisseurNom: newLotSupplier || undefined,
+            }
+          : l
+      );
+    } else {
+      const nextBatchNum = updatedLots.length + 1;
+      const newLot: ProductLot = {
+        id: `lot-${Date.now()}`,
+        nomLot: newLotName.trim() || `BATCH-${nextBatchNum}`,
+        quantite: qty,
+        prixAchat: cost,
+        prixVente: retail,
+        prixVenteGros: wholesale,
+        margePourcent: margin,
+        datePeremption: newLotExpiry || undefined,
+        fournisseurNom: newLotSupplier || undefined,
+        isDefault: updatedLots.length === 0,
+      };
+      updatedLots.push(newLot);
+    }
+
+    const totalQty = updatedLots.reduce((sum, l) => sum + (l.quantite || 0), 0);
+    const updatedProd: Product = {
+      ...managingLotsProduct,
+      lots: updatedLots,
+      quantite: totalQty,
+    };
+
+    if (onUpdateProduct) onUpdateProduct(updatedProd);
+    setManagingLotsProduct(updatedProd);
+
+    // Reset inputs
+    setNewLotName('');
+    setNewLotQty('');
+    setNewLotCostPrice('');
+    setNewLotMargin('');
+    setNewLotRetailPrice('');
+    setNewLotWholesalePrice('');
+    setNewLotExpiry('');
+    setNewLotSupplier('');
+    setEditingLotId(null);
+  };
+
+  const handleStartEditLot = (lot: ProductLot) => {
+    setEditingLotId(lot.id);
+    setNewLotName(lot.nomLot || '');
+    setNewLotQty(lot.quantite.toString());
+    setNewLotCostPrice(lot.prixAchat.toString());
+    setNewLotMargin(lot.margePourcent !== undefined ? lot.margePourcent.toString() : '');
+    setNewLotRetailPrice(lot.prixVente.toString());
+    setNewLotWholesalePrice(lot.prixVenteGros ? lot.prixVenteGros.toString() : '');
+    setNewLotExpiry(lot.datePeremption || '');
+    setNewLotSupplier(lot.fournisseurNom || '');
+  };
+
+  const handleSetDefaultLot = (lotId: string) => {
+    if (!managingLotsProduct) return;
+    const targetLot = managingLotsProduct.lots?.find((l) => l.id === lotId);
+    if (!targetLot) return;
+    const updatedLots = (managingLotsProduct.lots || []).map((l) => ({
+      ...l,
+      isDefault: l.id === lotId,
+    }));
+    const updatedProd: Product = {
+      ...managingLotsProduct,
+      lots: updatedLots,
+      prixAchat: targetLot.prixAchat,
+      prixVente: targetLot.prixVente,
+      prixVenteGros: targetLot.prixVenteGros,
+      datePeremption: targetLot.datePeremption,
+    };
+    if (onUpdateProduct) onUpdateProduct(updatedProd);
+    setManagingLotsProduct(updatedProd);
+  };
+
+  const handleDeleteLot = (lotId: string) => {
+    if (!managingLotsProduct) return;
+    const updatedLots = (managingLotsProduct.lots || []).filter((l) => l.id !== lotId);
+    const totalQty = updatedLots.reduce((sum, l) => sum + (l.quantite || 0), 0);
+    const updatedProd: Product = {
+      ...managingLotsProduct,
+      lots: updatedLots,
+      quantite: totalQty,
+    };
+    if (onUpdateProduct) onUpdateProduct(updatedProd);
+    setManagingLotsProduct(updatedProd);
+  };
+
+  // Open Stats Modal
+  const openStatsModal = (p: Product) => {
+    setStatsProduct(p);
   };
 
   // Filtering
@@ -421,72 +685,141 @@ export const StockView: React.FC<StockViewProps> = ({
                 paginatedProducts.map((p) => {
                   const isLow = p.quantite > 0 && p.quantite <= p.minStock;
                   const isOut = p.quantite === 0;
+                  const lotsCount = p.lots && p.lots.length > 0 ? p.lots.length : 1;
 
                   return (
                     <tr key={p.id} className="hover:bg-slate-50/60 dark:hover:bg-slate-700/30 transition-colors">
+                      {/* Code-barres */}
                       <td className="py-4 px-6 font-semibold text-slate-600 dark:text-slate-300">
-                        <span className="inline-flex items-center gap-1.5 font-mono text-xs bg-slate-100 dark:bg-slate-900 px-2.5 py-1 rounded-xl">
+                        <span className="inline-flex items-center gap-1.5 font-mono text-xs bg-slate-100 dark:bg-slate-900 border border-slate-200/60 dark:border-slate-800 px-3 py-1.5 rounded-xl font-bold">
                           <Barcode className="w-3.5 h-3.5 text-slate-400" />
                           <span>{p.codeBarre}</span>
                         </span>
                       </td>
 
+                      {/* Nom du Produit with Thumbnail */}
                       <td className="py-4 px-6 font-bold text-slate-900 dark:text-white">
-                        <div>
-                          <span className="text-sm block">{p.nom}</span>
-                          <div className="flex items-center gap-2 mt-0.5">
-                            <span className="text-[11px] font-medium text-slate-400">
-                              {p.categorie || 'Général'}
-                            </span>
-                            {p.famille && (
-                              <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-900 text-slate-500">
-                                {p.famille}
-                              </span>
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-xl bg-slate-100 dark:bg-slate-900 border border-slate-200/80 dark:border-slate-700/80 flex items-center justify-center shrink-0 overflow-hidden">
+                            {p.image ? (
+                              <img
+                                src={p.image}
+                                alt={p.nom}
+                                className="w-full h-full object-cover"
+                                referrerPolicy="no-referrer"
+                              />
+                            ) : (
+                              <Package className="w-5 h-5 text-slate-400" />
                             )}
+                          </div>
+                          <div>
+                            <span className="text-sm font-extrabold block text-slate-900 dark:text-white">
+                              {p.nom}
+                            </span>
+                            <div className="flex items-center gap-1.5 mt-0.5 text-[11px] font-semibold text-slate-400">
+                              <span>{p.categorie || 'Général'}</span>
+                              {p.famille && (
+                                <>
+                                  <span>•</span>
+                                  <span>Famille: {p.famille}</span>
+                                </>
+                              )}
+                            </div>
                           </div>
                         </div>
                       </td>
 
-                      <td className="py-4 px-6 font-black text-slate-900 dark:text-white text-sm">
-                        {p.quantite}
-                      </td>
-
+                      {/* Qté Valide Badge */}
                       <td className="py-4 px-6">
                         {isOut ? (
-                          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-extrabold bg-red-50 dark:bg-red-950/40 text-red-600 dark:text-red-400 border border-red-200/60">
+                          <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-black bg-red-100 dark:bg-red-950/60 text-red-700 dark:text-red-300 border border-red-200/80 dark:border-red-800/80">
                             <span className="w-2 h-2 rounded-full bg-red-500" />
-                            Rupture
+                            {p.quantite} (Rupture)
                           </span>
                         ) : isLow ? (
-                          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-extrabold bg-amber-50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400 border border-amber-200/60">
-                            <AlertTriangle className="w-3 h-3 text-amber-500" />
-                            Stock Faible
+                          <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-black bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 border border-amber-200/80 dark:border-amber-800/80">
+                            <span className="w-2 h-2 rounded-full bg-amber-500" />
+                            {p.quantite} (Faible)
                           </span>
                         ) : (
-                          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-extrabold bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 border border-emerald-200/60">
+                          <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-black bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 border border-emerald-200/80 dark:border-emerald-800/80">
                             <span className="w-2 h-2 rounded-full bg-emerald-500" />
-                            Valide
+                            {p.quantite} (Valide)
                           </span>
                         )}
                       </td>
 
+                      {/* Statut (Lots count) */}
+                      <td className="py-4 px-6 font-extrabold text-xs text-slate-600 dark:text-slate-400 uppercase tracking-wider">
+                        {lotsCount} LOT{lotsCount > 1 ? 'S' : 'S'}
+                      </td>
+
+                      {/* Actions Buttons */}
                       <td className="py-4 px-6 text-right">
                         <div className="flex items-center justify-end gap-2">
+                          {/* Star Favorite Button */}
                           <button
-                            onClick={() => openEditModal(p)}
-                            className="p-2 rounded-xl bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-600 dark:text-slate-200 transition-all"
-                            title="Modifier"
+                            type="button"
+                            onClick={() => handleToggleFavorite(p)}
+                            className="w-9 h-9 rounded-xl border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center justify-center transition-all cursor-pointer"
+                            title={p.isFavorite ? 'Retirer des favoris' : 'Ajouter aux favoris'}
                           >
-                            <Edit2 className="w-4 h-4" />
+                            <Star
+                              className={`w-4 h-4 ${
+                                p.isFavorite
+                                  ? 'fill-amber-400 text-amber-400'
+                                  : 'text-slate-400'
+                              }`}
+                            />
                           </button>
 
+                          {/* Stock & Lots Button (Screenshot 1) */}
                           <button
+                            type="button"
+                            onClick={() => openLotsModal(p)}
+                            className="px-3.5 py-2 rounded-xl bg-emerald-100 hover:bg-emerald-200 dark:bg-emerald-950/70 dark:hover:bg-emerald-900/80 text-emerald-800 dark:text-emerald-200 font-extrabold text-xs transition-all cursor-pointer shadow-sm"
+                          >
+                            Stock & Lots
+                          </button>
+
+                          {/* Modifier Infos Produit Button (Screenshot 1) */}
+                          <button
+                            type="button"
+                            onClick={() => openEditModal(p)}
+                            className="px-3.5 py-2 rounded-xl bg-blue-50 hover:bg-blue-100 dark:bg-blue-950/60 dark:hover:bg-blue-900/60 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-800 font-extrabold text-xs transition-all cursor-pointer shadow-sm"
+                          >
+                            Modifier Infos Produit
+                          </button>
+
+                          {/* Print Barcode Button */}
+                          <button
+                            type="button"
+                            onClick={() => openPrintBarcodeModal(p.codeBarre, p.nom, 'Détail', p.prixVente)}
+                            className="p-2 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-blue-50 dark:hover:bg-blue-950/40 text-slate-600 hover:text-blue-600 dark:text-slate-400 dark:hover:text-blue-400 transition-all cursor-pointer"
+                            title="Imprimer le Code-barres"
+                          >
+                            <Barcode className="w-4 h-4" />
+                          </button>
+
+                          {/* Stats Button */}
+                          <button
+                            type="button"
+                            onClick={() => openStatsModal(p)}
+                            className="p-2 rounded-xl bg-indigo-50 dark:bg-indigo-950/40 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 text-indigo-600 dark:text-indigo-400 transition-all cursor-pointer"
+                            title="Statistiques du produit"
+                          >
+                            <TrendingUp className="w-4 h-4" />
+                          </button>
+
+                          {/* Delete Button */}
+                          <button
+                            type="button"
                             onClick={() => {
                               if (confirm(`Voulez-vous vraiment supprimer "${p.nom}" ?`)) {
                                 onDeleteProduct(p.id);
                               }
                             }}
-                            className="p-2 rounded-xl bg-red-50 dark:bg-red-950/40 hover:bg-red-100 dark:hover:bg-red-900/40 text-red-600 dark:text-red-400 transition-all"
+                            className="p-2 rounded-xl bg-red-50 dark:bg-red-950/40 hover:bg-red-100 dark:hover:bg-red-900/40 text-red-600 dark:text-red-400 transition-all cursor-pointer"
                             title="Supprimer"
                           >
                             <Trash2 className="w-4 h-4" />
@@ -528,10 +861,10 @@ export const StockView: React.FC<StockViewProps> = ({
       {/* Modal: Ajouter / Modifier un Produit */}
       {showModal && (
         <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
-          <div className="bg-white dark:bg-slate-800 rounded-3xl max-w-2xl w-full shadow-2xl border border-slate-200 dark:border-slate-700 overflow-hidden my-8">
+          <div className="bg-white dark:bg-slate-800 rounded-3xl max-w-4xl w-full shadow-2xl border border-slate-200 dark:border-slate-700 overflow-hidden my-8">
             {/* Modal Header */}
-            <div className="p-6 border-b border-slate-100 dark:border-slate-700/80 flex items-center justify-between">
-              <h3 className="text-xl font-extrabold text-slate-900 dark:text-white">
+            <div className="px-8 py-6 border-b border-slate-100 dark:border-slate-700/80 flex items-center justify-between">
+              <h3 className="text-xl font-black text-slate-900 dark:text-white">
                 {editingProduct ? 'Modifier le Produit' : 'Ajouter un Nouveau Produit'}
               </h3>
 
@@ -539,7 +872,7 @@ export const StockView: React.FC<StockViewProps> = ({
                 <button
                   type="button"
                   onClick={handleSubmit}
-                  className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs shadow-md active:scale-95 transition-all flex items-center gap-1.5"
+                  className="px-5 py-2.5 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs shadow-sm active:scale-95 transition-all flex items-center gap-1.5 cursor-pointer"
                 >
                   <Save className="w-4 h-4" />
                   <span>Enregistrer le produit</span>
@@ -547,22 +880,22 @@ export const StockView: React.FC<StockViewProps> = ({
 
                 <button
                   onClick={() => setShowModal(false)}
-                  className="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-700 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 flex items-center justify-center transition-all"
+                  className="w-8 h-8 rounded-full text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 flex items-center justify-center transition-all cursor-pointer"
                 >
                   <X className="w-5 h-5" />
                 </button>
               </div>
             </div>
 
-            {/* Modal Navigation Tabs */}
-            <div className="flex border-b border-slate-100 dark:border-slate-700/80 bg-slate-50/50 dark:bg-slate-900/30 px-6 pt-3 gap-2">
+            {/* Modal Navigation Tabs (Pill style matching screenshot) */}
+            <div className="flex items-center gap-3 px-8 pt-4 pb-4 border-b border-slate-100 dark:border-slate-700/80 bg-white dark:bg-slate-800">
               <button
                 type="button"
                 onClick={() => setActiveTab('base')}
-                className={`flex items-center gap-2 px-4 py-2.5 rounded-t-2xl font-extrabold text-xs transition-all border-t border-x ${
+                className={`flex items-center gap-2 px-5 py-2.5 rounded-2xl font-extrabold text-xs transition-all cursor-pointer ${
                   activeTab === 'base'
-                    ? 'bg-blue-50/80 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 border-blue-200 dark:border-blue-800/80 shadow-sm'
-                    : 'border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+                    ? 'bg-blue-50/90 dark:bg-blue-950/50 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-800 shadow-none'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white font-bold'
                 }`}
               >
                 <Info className="w-4 h-4" />
@@ -572,98 +905,139 @@ export const StockView: React.FC<StockViewProps> = ({
               <button
                 type="button"
                 onClick={() => setActiveTab('tarifs')}
-                className={`flex items-center gap-2 px-4 py-2.5 rounded-t-2xl font-extrabold text-xs transition-all border-t border-x ${
+                className={`flex items-center gap-2 px-5 py-2.5 rounded-2xl font-extrabold text-xs transition-all cursor-pointer ${
                   activeTab === 'tarifs'
-                    ? 'bg-blue-50/80 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 border-blue-200 dark:border-blue-800/80 shadow-sm'
-                    : 'border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+                    ? 'bg-blue-50/90 dark:bg-blue-950/50 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-800 shadow-none'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white font-bold'
                 }`}
               >
-                <Tag className="w-4 h-4" />
+                <SlidersHorizontal className="w-4 h-4" />
                 <span>Propriétés & tarifs</span>
               </button>
 
               <button
                 type="button"
                 onClick={() => setActiveTab('variantes')}
-                className={`flex items-center gap-2 px-4 py-2.5 rounded-t-2xl font-extrabold text-xs transition-all border-t border-x ${
+                className={`flex items-center gap-2 px-5 py-2.5 rounded-2xl font-extrabold text-xs transition-all cursor-pointer ${
                   activeTab === 'variantes'
-                    ? 'bg-blue-50/80 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 border-blue-200 dark:border-blue-800/80 shadow-sm'
-                    : 'border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+                    ? 'bg-blue-50/90 dark:bg-blue-950/50 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-800 shadow-none'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white font-bold'
                 }`}
               >
-                <Palette className="w-4 h-4" />
+                <Layers className="w-4 h-4" />
                 <span>Variantes & couleurs</span>
               </button>
             </div>
 
             {/* Modal Body */}
-            <form onSubmit={handleSubmit} className="p-6 space-y-5 max-h-[70vh] overflow-y-auto">
+            <form onSubmit={handleSubmit} className="p-8 space-y-6 max-h-[75vh] overflow-y-auto">
               {/* TAB 1: Infos de base */}
               {activeTab === 'base' && (
                 <div className="space-y-5">
                   {/* Grid 1: Barcode & Extra Barcodes */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div className="space-y-1.5">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
+                    {/* Code-barres Principal */}
+                    <div className="space-y-2">
                       <label className="text-xs font-extrabold text-slate-700 dark:text-slate-300">
                         Code-barres
                       </label>
-                      <div className="relative">
+                      <div className="flex items-center gap-2">
                         <input
                           type="text"
                           value={codeBarre}
                           onChange={(e) => setCodeBarre(e.target.value)}
                           placeholder="Code-barres principal"
-                          className="w-full h-11 pr-11 pl-4 rounded-2xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 font-mono text-slate-900 dark:text-white text-xs font-bold focus:outline-none focus:ring-2 focus:ring-blue-500/30"
+                          className="flex-1 h-12 px-4 rounded-2xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 font-mono text-slate-900 dark:text-white text-xs font-bold focus:outline-none focus:ring-2 focus:ring-blue-500/20"
                         />
+
                         <button
                           type="button"
-                          onClick={generateBarcode}
-                          className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 rounded-xl bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 text-slate-600 dark:text-slate-300"
-                          title="Générer code-barres"
+                          onClick={() => openPrintBarcodeModal(codeBarre, nom, 'Détail', prixVente)}
+                          className="h-12 w-12 shrink-0 rounded-2xl bg-blue-50 hover:bg-blue-100 text-blue-600 dark:bg-blue-950/60 dark:hover:bg-blue-900/80 dark:text-blue-400 border border-blue-200/80 dark:border-blue-800/80 flex items-center justify-center transition-all shadow-sm cursor-pointer"
+                          title="Imprimer le code-barres"
                         >
-                          <Barcode className="w-4 h-4" />
+                          <Barcode className="w-5 h-5" />
                         </button>
                       </div>
                     </div>
 
-                    <div className="space-y-1.5">
+                    {/* Codes-barres Supplémentaires */}
+                    <div className="space-y-2">
                       <label className="text-xs font-extrabold text-slate-700 dark:text-slate-300">
                         Codes-barres Supplémentaires (Optionnel)
                       </label>
-                      <div className="space-y-2">
-                        <button
-                          type="button"
-                          onClick={handleAddExtraBarcode}
-                          className="w-full h-11 px-4 rounded-2xl bg-slate-50 dark:bg-slate-900 border border-dashed border-blue-300 dark:border-blue-700 text-blue-600 dark:text-blue-400 font-bold text-xs flex items-center justify-center gap-2 hover:bg-blue-50/50"
-                        >
-                          <Plus className="w-4 h-4" />
-                          <span>+ Ajouter un Code-barres</span>
-                        </button>
-                        {extraBarcodes.map((code, idx) => (
-                          <div key={idx} className="flex items-center gap-2">
+
+                      <div className="rounded-2xl bg-slate-50/60 dark:bg-slate-900/40 p-3.5 border border-slate-200/80 dark:border-slate-800 space-y-3">
+                        {extraBarcodes.map((item, idx) => (
+                          <div
+                            key={idx}
+                            className="p-2 bg-white dark:bg-slate-800 rounded-2xl border border-blue-200/80 dark:border-slate-700 shadow-sm flex items-center gap-2"
+                          >
                             <input
                               type="text"
-                              value={code}
+                              value={item.codeBarre}
                               onChange={(e) => {
                                 const next = [...extraBarcodes];
-                                next[idx] = e.target.value;
+                                next[idx] = { ...next[idx], codeBarre: e.target.value };
                                 setExtraBarcodes(next);
                               }}
-                              className="flex-1 h-9 px-3 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 font-mono text-xs font-bold"
+                              placeholder="Code-barres"
+                              className="w-28 sm:w-36 h-9 px-3 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-100 dark:border-slate-700 font-mono text-xs font-bold text-slate-900 dark:text-white focus:outline-none"
                             />
+
+                            <select
+                              value={item.typePrix}
+                              onChange={(e) => {
+                                const next = [...extraBarcodes];
+                                next[idx] = { ...next[idx], typePrix: e.target.value };
+                                setExtraBarcodes(next);
+                              }}
+                              className="h-9 px-2.5 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-100 dark:border-slate-700 text-xs font-bold text-slate-700 dark:text-slate-200 focus:outline-none cursor-pointer"
+                            >
+                              <option value="Détail">Détail</option>
+                              <option value="Gros">Gros</option>
+                            </select>
+
+                            <button
+                              type="button"
+                              onClick={() =>
+                                openPrintBarcodeModal(
+                                  item.codeBarre,
+                                  nom,
+                                  item.typePrix,
+                                  item.typePrix === 'Gros' ? prixVenteGros : prixVente
+                                )
+                              }
+                              className="p-2 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-600 dark:bg-blue-950/60 dark:text-blue-400 border border-blue-200/80 dark:border-blue-800/80 transition-colors"
+                              title="Imprimer ce code-barres"
+                            >
+                              <Barcode className="w-4 h-4" />
+                            </button>
+
                             <button
                               type="button"
                               onClick={() => setExtraBarcodes(extraBarcodes.filter((_, i) => i !== idx))}
-                              className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg"
+                              className="p-2 rounded-xl bg-slate-100 hover:bg-red-50 text-slate-400 hover:text-red-600 dark:bg-slate-700 dark:hover:bg-red-950/60 transition-colors"
+                              title="Supprimer"
                             >
-                              <X className="w-4 h-4" />
+                              <Trash2 className="w-4 h-4" />
                             </button>
                           </div>
                         ))}
+
+                        <button
+                          type="button"
+                          onClick={handleAddExtraBarcode}
+                          className="w-full h-11 px-4 rounded-2xl bg-white dark:bg-slate-800 border border-blue-200 dark:border-blue-700 text-blue-600 dark:text-blue-400 font-bold text-xs flex items-center justify-center gap-2 hover:bg-blue-50/50 shadow-sm transition-all cursor-pointer"
+                        >
+                          <PlusCircle className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                          <span>+ Ajouter un Code-barres</span>
+                        </button>
+
+                        <p className="text-[11px] text-slate-400 font-medium px-1">
+                          Remarque : Chaque code-barres doit être unique.
+                        </p>
                       </div>
-                      <p className="text-[10px] text-slate-400 font-medium">
-                        Remarque : Chaque code-barres doit être unique.
-                      </p>
                     </div>
                   </div>
 
@@ -683,40 +1057,24 @@ export const StockView: React.FC<StockViewProps> = ({
                       />
                     </div>
 
-                    <div className="space-y-1.5">
-                      <label className="text-xs font-extrabold text-slate-700 dark:text-slate-300">
-                        Catégorie
-                      </label>
-                      <input
-                        type="text"
-                        list="modal-categories"
-                        value={categorie}
-                        onChange={(e) => setCategorie(e.target.value)}
-                        placeholder="Choisir ou saisir une catégorie..."
-                        className="w-full h-11 px-4 rounded-2xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white text-xs font-bold focus:outline-none focus:ring-2 focus:ring-blue-500/30"
-                      />
-                      <datalist id="modal-categories">
-                        {categories.map((c) => (
-                          <option key={c} value={c} />
-                        ))}
-                      </datalist>
-                    </div>
+                    <CreatableSelect
+                      label="Catégorie"
+                      value={categorie}
+                      onChange={setCategorie}
+                      options={categories}
+                      placeholder="Choisir ou saisir une catégorie..."
+                    />
                   </div>
 
                   {/* Famille & Fournisseur */}
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div className="space-y-1.5">
-                      <label className="text-xs font-extrabold text-slate-700 dark:text-slate-300">
-                        Famille
-                      </label>
-                      <input
-                        type="text"
-                        value={famille}
-                        onChange={(e) => setFamille(e.target.value)}
-                        placeholder="Exemple : Famille Coca-Cola"
-                        className="w-full h-11 px-4 rounded-2xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white text-xs font-bold focus:outline-none focus:ring-2 focus:ring-blue-500/30"
-                      />
-                    </div>
+                    <CreatableSelect
+                      label="Famille"
+                      value={famille}
+                      onChange={setFamille}
+                      options={families}
+                      placeholder="Exemple : Famille Coca-Cola"
+                    />
 
                     <div className="space-y-1.5">
                       <label className="text-xs font-extrabold text-slate-700 dark:text-slate-300">
@@ -1210,13 +1568,14 @@ export const StockView: React.FC<StockViewProps> = ({
                                 
                                 const newVariantes = combinations.map((combo: any) => {
                                   const name = Array.isArray(combo) ? combo.join(' - ') : combo;
+                                  const existing = variantes.find(ev => ev.nom === name);
                                   return {
-                                    id: Math.random().toString(),
+                                    id: existing?.id || Math.random().toString(),
                                     nom: name,
-                                    codeBarre: v.codeBarre || Math.floor(100000000000 + Math.random() * 900000000000).toString(),
-                                    quantite: 0,
-                                    prixAchat: parseFloat(prixAchat) || 0,
-                                    prixVente: parseFloat(prixVente) || 0,
+                                    codeBarre: existing?.codeBarre || Math.floor(100000000000 + Math.random() * 900000000000).toString(),
+                                    quantite: existing?.quantite || 0,
+                                    prixAchat: existing?.prixAchat ?? (parseFloat(prixAchat) || 0),
+                                    prixVente: existing?.prixVente ?? (parseFloat(prixVente) || 0),
                                     actif: true
                                   };
                                 });
@@ -1431,6 +1790,855 @@ export const StockView: React.FC<StockViewProps> = ({
               )}
             </form>
           </div>
+        </div>
+      )}
+
+      {/* MODAL IMPRIMER LE CODE-BARRES */}
+      {showPrintModal && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+          <div className="bg-white dark:bg-slate-800 rounded-3xl max-w-md w-full shadow-2xl overflow-hidden border border-slate-100 dark:border-slate-700">
+            {/* Header */}
+            <div className="px-6 py-5 border-b border-slate-100 dark:border-slate-700/80 text-center relative">
+              <h3 className="text-base font-extrabold text-slate-900 dark:text-white">
+                Imprimer le Code-barres
+              </h3>
+              <p className="text-xs font-semibold text-slate-400 mt-0.5">
+                Configuration des étiquettes
+              </p>
+              <button
+                type="button"
+                onClick={() => setShowPrintModal(false)}
+                className="absolute right-4 top-4 w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-700 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 flex items-center justify-center transition-all"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Body */}
+            <div className="p-6 space-y-4 max-h-[75vh] overflow-y-auto">
+              {/* Code-barres */}
+              <div className="space-y-1">
+                <label className="text-[11px] font-extrabold text-slate-700 dark:text-slate-300">
+                  Code-barres
+                </label>
+                <input
+                  type="text"
+                  readOnly
+                  value={printBarcode}
+                  className="w-full h-11 px-4 rounded-2xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 font-mono text-slate-900 dark:text-white text-xs font-extrabold opacity-90"
+                />
+              </div>
+
+              {/* Produit */}
+              <div className="space-y-1">
+                <label className="text-[11px] font-extrabold text-slate-700 dark:text-slate-300">
+                  Produit
+                </label>
+                <input
+                  type="text"
+                  readOnly
+                  value={printProductName}
+                  className="w-full h-11 px-4 rounded-2xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white text-xs font-extrabold opacity-90"
+                />
+              </div>
+
+              {/* Type de prix & Prix */}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <label className="text-[11px] font-extrabold text-slate-700 dark:text-slate-300">
+                    Type de Prix
+                  </label>
+                  <select
+                    value={printPriceType}
+                    onChange={(e) => setPrintPriceType(e.target.value)}
+                    className="w-full h-11 px-3 rounded-2xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-900 dark:text-white focus:outline-none cursor-pointer"
+                  >
+                    <option value="Détail">Détail</option>
+                    <option value="Gros">Gros</option>
+                  </select>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[11px] font-extrabold text-slate-700 dark:text-slate-300">
+                    Prix (DA)
+                  </label>
+                  <input
+                    type="number"
+                    value={printPrice}
+                    onChange={(e) => setPrintPrice(e.target.value)}
+                    className="w-full h-11 px-4 rounded-2xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white text-xs font-bold focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              {/* Nombre d'étiquettes */}
+              <div className="space-y-1">
+                <label className="text-[11px] font-extrabold text-slate-700 dark:text-slate-300">
+                  Nombre d'étiquettes
+                </label>
+                <input
+                  type="number"
+                  min="1"
+                  value={printLabelCount}
+                  onChange={(e) => setPrintLabelCount(parseInt(e.target.value) || 1)}
+                  className="w-full h-11 px-4 rounded-2xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white text-xs font-bold focus:outline-none"
+                />
+              </div>
+
+              {/* Taille de l'étiquette */}
+              <div className="space-y-1">
+                <label className="text-[11px] font-extrabold text-slate-700 dark:text-slate-300">
+                  Taille de l'étiquette
+                </label>
+                <select
+                  value={printLabelSize}
+                  onChange={(e) => setPrintLabelSize(e.target.value)}
+                  className="w-full h-11 px-4 rounded-2xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-900 dark:text-white focus:outline-none cursor-pointer"
+                >
+                  <option value="40 × 25 mm">40 × 25 mm</option>
+                  <option value="40 × 30 mm">40 × 30 mm</option>
+                  <option value="50 × 25 mm">50 × 25 mm</option>
+                  <option value="50 × 30 mm">50 × 30 mm</option>
+                  <option value="60 × 40 mm">60 × 40 mm</option>
+                  <option value="Personnalisé...">Personnalisé...</option>
+                </select>
+              </div>
+
+              {/* Hauteur du code-barres automatique */}
+              <div className="space-y-1 pt-1">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={autoHeight}
+                    onChange={(e) => setAutoHeight(e.target.checked)}
+                    className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                  />
+                  <span className="text-xs font-bold text-slate-800 dark:text-slate-200">
+                    Hauteur du code-barres automatique
+                  </span>
+                </label>
+                <p className="text-[10px] text-slate-400 font-medium pl-6 leading-tight">
+                  Choisit automatiquement la meilleure hauteur pour remplir l'espace restant tout en gardant le code-barres lisible.
+                </p>
+              </div>
+
+              {/* Contenu de l'étiquette */}
+              <div className="space-y-2 pt-2 border-t border-slate-100 dark:border-slate-700/80">
+                <label className="text-xs font-extrabold text-slate-800 dark:text-slate-200 block">
+                  Contenu de l'étiquette
+                </label>
+
+                <div className="grid grid-cols-2 gap-y-2.5 gap-x-2">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={labelContent.storeName}
+                      onChange={(e) => setLabelContent({ ...labelContent, storeName: e.target.checked })}
+                      className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                    />
+                    <span className="text-xs font-semibold text-slate-700 dark:text-slate-300">Nom du magasin</span>
+                  </label>
+
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={labelContent.productName}
+                      onChange={(e) => setLabelContent({ ...labelContent, productName: e.target.checked })}
+                      className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                    />
+                    <span className="text-xs font-semibold text-slate-700 dark:text-slate-300">Nom du produit</span>
+                  </label>
+
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={labelContent.price}
+                      onChange={(e) => setLabelContent({ ...labelContent, price: e.target.checked })}
+                      className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                    />
+                    <span className="text-xs font-semibold text-slate-700 dark:text-slate-300">Prix</span>
+                  </label>
+
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={labelContent.priceType}
+                      onChange={(e) => setLabelContent({ ...labelContent, priceType: e.target.checked })}
+                      className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                    />
+                    <span className="text-xs font-semibold text-slate-700 dark:text-slate-300">Type de prix</span>
+                  </label>
+
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={labelContent.barcodeNumber}
+                      onChange={(e) => setLabelContent({ ...labelContent, barcodeNumber: e.target.checked })}
+                      className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                    />
+                    <span className="text-xs font-semibold text-slate-700 dark:text-slate-300">Numéro du code-barres</span>
+                  </label>
+
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={labelContent.variants}
+                      onChange={(e) => setLabelContent({ ...labelContent, variants: e.target.checked })}
+                      className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                    />
+                    <span className="text-xs font-semibold text-slate-700 dark:text-slate-300">Variantes</span>
+                  </label>
+
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={labelContent.discount}
+                      onChange={(e) => setLabelContent({ ...labelContent, discount: e.target.checked })}
+                      className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                    />
+                    <span className="text-xs font-semibold text-slate-700 dark:text-slate-300">Remise</span>
+                  </label>
+                </div>
+              </div>
+            </div>
+
+            {/* Footer Actions */}
+            <div className="p-4 bg-slate-50 dark:bg-slate-900/50 border-t border-slate-100 dark:border-slate-700/80 grid grid-cols-2 gap-3">
+              <button
+                type="button"
+                onClick={() => setShowPrintModal(false)}
+                className="w-full py-3 rounded-2xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 font-bold text-xs hover:bg-slate-100 dark:hover:bg-slate-700 transition-all"
+              >
+                Annuler
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  window.print();
+                  setShowPrintModal(false);
+                }}
+                className="w-full py-3 rounded-2xl bg-blue-600 hover:bg-blue-700 text-white font-extrabold text-xs shadow-lg shadow-blue-500/25 transition-all flex items-center justify-center gap-2"
+              >
+                <Printer className="w-4 h-4" />
+                <span>Imprimer</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Gérer les Lots (Matching Screenshot 2) */}
+      {managingLotsProduct && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-in fade-in duration-200">
+          <div className="bg-white dark:bg-slate-800 rounded-3xl w-full max-w-4xl shadow-2xl border border-slate-100 dark:border-slate-700 max-h-[90vh] flex flex-col overflow-hidden">
+            {/* Modal Header */}
+            <div className="p-6 border-b border-slate-100 dark:border-slate-700/80 flex items-start justify-between">
+              <div>
+                <h3 className="text-lg font-black text-slate-900 dark:text-white flex items-center gap-2">
+                  <Package className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+                  <span>Gérer les Lots : {managingLotsProduct.nom}</span>
+                </h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 font-medium">
+                  Gérez les dates d'expiration, les prix d'achat/vente et les quantités pour chaque lot individuel.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setManagingLotsProduct(null)}
+                className="w-9 h-9 rounded-2xl bg-slate-100 dark:bg-slate-700 text-slate-500 hover:text-slate-800 dark:hover:text-white flex items-center justify-center transition-all cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-6 space-y-6 overflow-y-auto flex-1">
+              {/* Formulaire d'ajout / modification de lot */}
+              <div className="p-5 rounded-3xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200/80 dark:border-slate-700/80 space-y-4">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-xs font-black text-slate-800 dark:text-slate-200 uppercase tracking-wider flex items-center gap-2">
+                    <Plus className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                    <span>{editingLotId ? 'Modifier le Lot' : 'Ajouter un Nouveau Lot'}</span>
+                  </h4>
+                  {editingLotId && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEditingLotId(null);
+                        setNewLotName('');
+                        setNewLotQty('');
+                        setNewLotCostPrice('');
+                        setNewLotMargin('');
+                        setNewLotRetailPrice('');
+                        setNewLotWholesalePrice('');
+                        setNewLotExpiry('');
+                        setNewLotSupplier('');
+                      }}
+                      className="text-xs font-bold text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 underline"
+                    >
+                      Annuler la modification
+                    </button>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-extrabold text-slate-700 dark:text-slate-300">
+                      Nom / Numéro de Lot
+                    </label>
+                    <input
+                      type="text"
+                      value={newLotName}
+                      onChange={(e) => setNewLotName(e.target.value)}
+                      placeholder="Ex : BATCH-2026-A"
+                      className="w-full h-11 px-4 rounded-2xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white text-xs font-bold focus:outline-none"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-extrabold text-slate-700 dark:text-slate-300">
+                      Quantité du Lot
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={newLotQty}
+                      onChange={(e) => setNewLotQty(e.target.value)}
+                      placeholder="0"
+                      className="w-full h-11 px-4 rounded-2xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white text-xs font-bold focus:outline-none"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-extrabold text-slate-700 dark:text-slate-300">
+                      Date d'Expiration
+                    </label>
+                    <input
+                      type="date"
+                      value={newLotExpiry}
+                      onChange={(e) => setNewLotExpiry(e.target.value)}
+                      className="w-full h-11 px-4 rounded-2xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white text-xs font-bold focus:outline-none"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-extrabold text-slate-700 dark:text-slate-300">
+                      Prix d'Achat (DA)
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={newLotCostPrice}
+                      onChange={(e) => handleLotCostChange(e.target.value)}
+                      placeholder="0"
+                      className="w-full h-11 px-4 rounded-2xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white text-xs font-bold focus:outline-none"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-extrabold text-slate-700 dark:text-slate-300">
+                      Marge (%)
+                    </label>
+                    <input
+                      type="number"
+                      value={newLotMargin}
+                      onChange={(e) => handleLotMarginChange(e.target.value)}
+                      placeholder="ex: 20"
+                      className="w-full h-11 px-4 rounded-2xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white text-xs font-bold focus:outline-none"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-extrabold text-slate-700 dark:text-slate-300">
+                      Prix Vente Détail (DA)
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={newLotRetailPrice}
+                      onChange={(e) => setNewLotRetailPrice(e.target.value)}
+                      placeholder="0"
+                      className="w-full h-11 px-4 rounded-2xl bg-white dark:bg-slate-800 border border-blue-500 text-slate-900 dark:text-white text-xs font-bold focus:outline-none ring-2 ring-blue-500/20"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-extrabold text-slate-700 dark:text-slate-300">
+                      Prix Vente Gros (DA)
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={newLotWholesalePrice}
+                      onChange={(e) => setNewLotWholesalePrice(e.target.value)}
+                      placeholder="Optionnel"
+                      className="w-full h-11 px-4 rounded-2xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white text-xs font-bold focus:outline-none"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[11px] font-extrabold text-slate-700 dark:text-slate-300">
+                    Fournisseur du Lot (Optionnel)
+                  </label>
+                  <input
+                    type="text"
+                    value={newLotSupplier}
+                    onChange={(e) => setNewLotSupplier(e.target.value)}
+                    placeholder="Ex : Fournisseur principal"
+                    className="w-full h-11 px-4 rounded-2xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white text-xs font-bold focus:outline-none"
+                  />
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleAddOrUpdateLot}
+                  className="w-full py-3 rounded-2xl bg-blue-600 hover:bg-blue-700 text-white font-extrabold text-xs shadow-lg shadow-blue-600/25 active:scale-98 transition-all flex items-center justify-center gap-2 cursor-pointer"
+                >
+                  <Save className="w-4 h-4" />
+                  <span>{editingLotId ? 'Mettre à jour ce Lot' : '+ Ajouter ce Lot au Stock'}</span>
+                </button>
+              </div>
+
+              {/* Liste des Lots Actuellement Stockés */}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-xs font-black text-slate-900 dark:text-white uppercase tracking-wider">
+                    Lots Actuellement Stockés ({(managingLotsProduct.lots || []).length})
+                  </h4>
+                  <span className="text-xs font-bold text-slate-500">
+                    Stock Total : <strong className="text-blue-600 dark:text-blue-400 font-black">{managingLotsProduct.quantite}</strong>
+                  </span>
+                </div>
+
+                <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/80 dark:border-slate-700/80 overflow-hidden shadow-sm">
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left border-collapse text-xs">
+                      <thead>
+                        <tr className="bg-slate-50 dark:bg-slate-800/80 border-b border-slate-200/80 dark:border-slate-700/80 text-[11px] font-extrabold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                          <th className="py-3 px-4">Lot</th>
+                          <th className="py-3 px-4">Quantité</th>
+                          <th className="py-3 px-4">Prix Achat</th>
+                          <th className="py-3 px-4">Prix Vente</th>
+                          <th className="py-3 px-4">Périmé le</th>
+                          <th className="py-3 px-4 text-center">Par Défaut</th>
+                          <th className="py-3 px-4 text-right">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                        {(!managingLotsProduct.lots || managingLotsProduct.lots.length === 0) ? (
+                          <tr>
+                            <td colSpan={7} className="py-8 text-center text-slate-400 font-bold">
+                              Aucun lot enregistré. Le lot par défaut sera créé automatiquement.
+                            </td>
+                          </tr>
+                        ) : (
+                          managingLotsProduct.lots.map((lot) => {
+                            const isExpired = lot.datePeremption && new Date(lot.datePeremption) <= new Date();
+
+                            return (
+                              <tr key={lot.id} className="hover:bg-slate-50/70 dark:hover:bg-slate-800/40 transition-colors">
+                                <td className="py-3.5 px-4 font-bold text-slate-900 dark:text-white">
+                                  <div className="flex items-center gap-2">
+                                    <span className="font-mono font-black">{lot.nomLot || 'BATCH-1'}</span>
+                                    {lot.isDefault && (
+                                      <span className="px-2 py-0.5 rounded-md bg-blue-100 dark:bg-blue-950/70 text-blue-700 dark:text-blue-300 font-extrabold text-[10px]">
+                                        Défaut
+                                      </span>
+                                    )}
+                                  </div>
+                                  {lot.fournisseurNom && (
+                                    <span className="text-[10px] text-slate-400 block font-medium">
+                                      Fourn: {lot.fournisseurNom}
+                                    </span>
+                                  )}
+                                </td>
+
+                                <td className="py-3.5 px-4 font-black text-slate-900 dark:text-white">
+                                  {lot.quantite}
+                                </td>
+
+                                <td className="py-3.5 px-4 font-semibold text-slate-700 dark:text-slate-300">
+                                  {lot.prixAchat} DA
+                                </td>
+
+                                <td className="py-3.5 px-4 font-black text-blue-600 dark:text-blue-400">
+                                  <div>{lot.prixVente} DA</div>
+                                  {lot.prixVenteGros && (
+                                    <span className="text-[10px] text-slate-400 font-medium block">
+                                      Gros: {lot.prixVenteGros} DA
+                                    </span>
+                                  )}
+                                </td>
+
+                                <td className="py-3.5 px-4">
+                                  {lot.datePeremption ? (
+                                    <span
+                                      className={`inline-block px-2.5 py-1 rounded-xl text-[11px] font-black border ${
+                                        isExpired
+                                          ? 'bg-red-50 dark:bg-red-950/40 text-red-600 dark:text-red-400 border-red-200 dark:border-red-800'
+                                          : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700'
+                                      }`}
+                                    >
+                                      {lot.datePeremption} {isExpired && '(Périmé)'}
+                                    </span>
+                                  ) : (
+                                    <span className="text-slate-400">-</span>
+                                  )}
+                                </td>
+
+                                <td className="py-3.5 px-4 text-center">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleSetDefaultLot(lot.id)}
+                                    className={`w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all cursor-pointer mx-auto ${
+                                      lot.isDefault
+                                        ? 'border-blue-600 bg-blue-600 text-white'
+                                        : 'border-slate-300 dark:border-slate-600 hover:border-blue-400'
+                                    }`}
+                                    title="Définir comme lot par défaut"
+                                  >
+                                    {lot.isDefault && <Check className="w-3.5 h-3.5" />}
+                                  </button>
+                                </td>
+
+                                <td className="py-3.5 px-4 text-right">
+                                  <div className="flex items-center justify-end gap-1.5">
+                                    <button
+                                      type="button"
+                                      onClick={() => handleStartEditLot(lot)}
+                                      className="p-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-blue-50 dark:hover:bg-blue-950/40 text-slate-600 hover:text-blue-600 dark:text-slate-300 transition-all cursor-pointer"
+                                      title="Modifier ce lot"
+                                    >
+                                      <Edit2 className="w-3.5 h-3.5" />
+                                    </button>
+
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        if (confirm(`Supprimer le lot "${lot.nomLot}" ?`)) {
+                                          handleDeleteLot(lot.id);
+                                        }
+                                      }}
+                                      className="p-1.5 rounded-xl bg-red-50 dark:bg-red-950/40 hover:bg-red-100 dark:hover:bg-red-900/40 text-red-600 dark:text-red-400 transition-all cursor-pointer"
+                                      title="Supprimer ce lot"
+                                    >
+                                      <Trash2 className="w-3.5 h-3.5" />
+                                    </button>
+                                  </div>
+                                </td>
+                              </tr>
+                            );
+                          })
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="p-4 bg-slate-50 dark:bg-slate-900/60 border-t border-slate-100 dark:border-slate-700/80 flex items-center justify-end">
+              <button
+                type="button"
+                onClick={() => setManagingLotsProduct(null)}
+                className="px-6 py-2.5 rounded-2xl bg-blue-600 hover:bg-blue-700 text-white font-extrabold text-xs shadow-md shadow-blue-500/25 transition-all cursor-pointer"
+              >
+                Fermer
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Statistiques du Produit (Matching Screenshot 4) */}
+      {statsProduct && (() => {
+        const productSales = sales.flatMap((s) => s.items || []).filter(
+          (item) => item.productId === statsProduct.id || item.nom === statsProduct.nom
+        );
+        const totalQtySold = productSales.reduce((acc, i) => acc + (i.quantite || 0), 0);
+        const totalRevenue = productSales.reduce((acc, i) => acc + (i.total || 0), 0);
+        const totalCostOfSold = totalQtySold * (statsProduct.prixAchat || 0);
+        const totalProfit = Math.max(0, totalRevenue - totalCostOfSold);
+        const stockValue = (statsProduct.quantite || 0) * (statsProduct.prixAchat || 0);
+        const marginRate =
+          statsProduct.prixAchat > 0
+            ? ((statsProduct.prixVente - statsProduct.prixAchat) / statsProduct.prixAchat) * 100
+            : 0;
+        const dailyAverageSales = totalQtySold > 0 ? (totalQtySold / 7).toFixed(1) : '0';
+        const daysUntilStockout =
+          parseFloat(dailyAverageSales) > 0
+            ? Math.round(statsProduct.quantite / parseFloat(dailyAverageSales))
+            : 0;
+
+        const isProductExpired =
+          statsProduct.datePeremption && new Date(statsProduct.datePeremption) <= new Date();
+        const expiredLotsCount = (statsProduct.lots || []).filter(
+          (l) => l.datePeremption && new Date(l.datePeremption) <= new Date()
+        ).length;
+        const totalLotsCount =
+          statsProduct.lots && statsProduct.lots.length > 0 ? statsProduct.lots.length : 1;
+        const expiredQty = isProductExpired
+          ? statsProduct.quantite
+          : (statsProduct.lots || [])
+              .filter((l) => l.datePeremption && new Date(l.datePeremption) <= new Date())
+              .reduce((acc, l) => acc + l.quantite, 0);
+        const availableQty = Math.max(0, statsProduct.quantite - expiredQty);
+
+        return (
+          <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-in fade-in duration-200">
+            <div className="bg-white dark:bg-slate-800 rounded-3xl w-full max-w-4xl shadow-2xl border border-slate-100 dark:border-slate-700 max-h-[90vh] flex flex-col overflow-hidden">
+              {/* Header */}
+              <div className="p-6 border-b border-slate-100 dark:border-slate-700/80 flex items-start justify-between">
+                <div>
+                  <h3 className="text-lg font-black text-slate-900 dark:text-white flex items-center gap-2">
+                    <TrendingUp className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
+                    <span>Statistiques du Produit : {statsProduct.nom}</span>
+                  </h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 font-medium">
+                    Analyse des ventes, bénéfices et état du stock
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setStatsProduct(null)}
+                  className="w-9 h-9 rounded-2xl bg-slate-100 dark:bg-slate-700 text-slate-500 hover:text-slate-800 dark:hover:text-white flex items-center justify-center transition-all cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              {/* Body */}
+              <div className="p-6 space-y-6 overflow-y-auto flex-1">
+                {/* 4 KPI Cards (Screenshot 4 Top Row) */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                  {/* Revenu Total */}
+                  <div className="p-5 rounded-3xl bg-slate-50/80 dark:bg-slate-900/50 border border-slate-200/80 dark:border-slate-700/80 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-slate-500 dark:text-slate-400">
+                        Revenu Total
+                      </span>
+                      <div className="w-9 h-9 rounded-full bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 flex items-center justify-center">
+                        <Banknote className="w-4 h-4" />
+                      </div>
+                    </div>
+                    <div className="text-xl font-black text-slate-900 dark:text-white">
+                      {totalRevenue.toFixed(2)} DA
+                    </div>
+                  </div>
+
+                  {/* Bénéfice Net */}
+                  <div className="p-5 rounded-3xl bg-slate-50/80 dark:bg-slate-900/50 border border-slate-200/80 dark:border-slate-700/80 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-slate-500 dark:text-slate-400">
+                        Bénéfice Net
+                      </span>
+                      <div className="w-9 h-9 rounded-full bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 flex items-center justify-center">
+                        <TrendingUp className="w-4 h-4" />
+                      </div>
+                    </div>
+                    <div className="text-xl font-black text-slate-900 dark:text-white">
+                      {totalProfit.toFixed(2)} DA
+                    </div>
+                  </div>
+
+                  {/* Quantité Vendue */}
+                  <div className="p-5 rounded-3xl bg-slate-50/80 dark:bg-slate-900/50 border border-slate-200/80 dark:border-slate-700/80 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-slate-500 dark:text-slate-400">
+                        Quantité Vendue
+                      </span>
+                      <div className="w-9 h-9 rounded-full bg-purple-50 dark:bg-purple-950/60 text-purple-600 dark:text-purple-400 flex items-center justify-center">
+                        <ShoppingCart className="w-4 h-4" />
+                      </div>
+                    </div>
+                    <div className="text-xl font-black text-slate-900 dark:text-white">
+                      {totalQtySold}
+                    </div>
+                  </div>
+
+                  {/* Valeur du Stock */}
+                  <div className="p-5 rounded-3xl bg-slate-50/80 dark:bg-slate-900/50 border border-slate-200/80 dark:border-slate-700/80 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-slate-500 dark:text-slate-400">
+                        Valeur du Stock
+                      </span>
+                      <div className="w-9 h-9 rounded-full bg-amber-50 dark:bg-amber-950/60 text-amber-600 dark:text-amber-400 flex items-center justify-center">
+                        <Package className="w-4 h-4" />
+                      </div>
+                    </div>
+                    <div className="text-xl font-black text-slate-900 dark:text-white">
+                      {stockValue.toFixed(2)} DA
+                    </div>
+                  </div>
+                </div>
+
+                {/* 3 KPI Cards (Screenshot 4 Middle Row) */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  {/* Marge Bénéficiaire */}
+                  <div className="p-4 rounded-3xl bg-slate-50/80 dark:bg-slate-900/50 border border-slate-200/80 dark:border-slate-700/80 flex items-center gap-4">
+                    <div className="w-12 h-12 rounded-2xl bg-teal-50 dark:bg-teal-950/60 text-teal-600 dark:text-teal-400 flex items-center justify-center font-black shrink-0">
+                      <Percent className="w-6 h-6" />
+                    </div>
+                    <div>
+                      <span className="text-xs font-bold text-slate-500 dark:text-slate-400 block">
+                        Marge Bénéficiaire
+                      </span>
+                      <span className="text-base font-black text-slate-900 dark:text-white">
+                        {marginRate.toFixed(1)}%
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Ventes Quotidiennes */}
+                  <div className="p-4 rounded-3xl bg-slate-50/80 dark:bg-slate-900/50 border border-slate-200/80 dark:border-slate-700/80 flex items-center gap-4">
+                    <div className="w-12 h-12 rounded-2xl bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 flex items-center justify-center font-black shrink-0">
+                      <Calendar className="w-6 h-6" />
+                    </div>
+                    <div>
+                      <span className="text-xs font-bold text-slate-500 dark:text-slate-400 block">
+                        Ventes Quotidiennes
+                      </span>
+                      <span className="text-base font-black text-slate-900 dark:text-white">
+                        {dailyAverageSales}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Jours avant Rupture */}
+                  <div className="p-4 rounded-3xl bg-slate-50/80 dark:bg-slate-900/50 border border-slate-200/80 dark:border-slate-700/80 flex items-center gap-4">
+                    <div className="w-12 h-12 rounded-2xl bg-rose-50 dark:bg-rose-950/60 text-rose-600 dark:text-rose-400 flex items-center justify-center font-black shrink-0">
+                      <Hourglass className="w-6 h-6" />
+                    </div>
+                    <div>
+                      <span className="text-xs font-bold text-slate-500 dark:text-slate-400 block">
+                        Jours avant Rupture
+                      </span>
+                      <span className="text-base font-black text-slate-900 dark:text-white">
+                        {daysUntilStockout} jours
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 2 Bottom Containers (Screenshot 4 Bottom Row) */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {/* Statut du Stock */}
+                  <div className="p-5 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-700/80 shadow-sm space-y-4">
+                    <h4 className="text-sm font-extrabold text-slate-900 dark:text-white">
+                      Statut du Stock
+                    </h4>
+                    <div className="space-y-3 divide-y divide-slate-100 dark:divide-slate-800 text-xs">
+                      <div className="flex items-center justify-between pt-1">
+                        <span className="font-semibold text-slate-600 dark:text-slate-400">
+                          Stock total restant
+                        </span>
+                        <span className="font-black text-slate-900 dark:text-white">
+                          {statsProduct.quantite}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center justify-between pt-3">
+                        <span className="font-semibold text-slate-600 dark:text-slate-400">
+                          Stock disponible à la vente
+                        </span>
+                        <span className="font-black text-emerald-600 dark:text-emerald-400">
+                          {availableQty}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center justify-between pt-3">
+                        <span className="font-semibold text-slate-600 dark:text-slate-400">
+                          Stock expiré
+                        </span>
+                        <span className="font-black text-red-500">
+                          {expiredQty}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center justify-between pt-3">
+                        <span className="font-semibold text-slate-600 dark:text-slate-400">
+                          Lots (Expirés / Total)
+                        </span>
+                        <span className="font-black text-slate-900 dark:text-white">
+                          {expiredLotsCount} / {totalLotsCount}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Performance des variantes */}
+                  <div className="p-5 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-700/80 shadow-sm space-y-4">
+                    <h4 className="text-sm font-extrabold text-slate-900 dark:text-white">
+                      Performance des variantes
+                    </h4>
+
+                    {statsProduct.variantes && statsProduct.variantes.length > 0 ? (
+                      <div className="space-y-2 text-xs">
+                        {statsProduct.variantes.map((v) => (
+                          <div
+                            key={v.id}
+                            className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-800 flex items-center justify-between"
+                          >
+                            <div>
+                              <span className="font-bold text-slate-900 dark:text-white block">
+                                {Object.values(v.options).join(' / ')}
+                              </span>
+                              <span className="text-[10px] text-slate-400 font-mono">{v.sku}</span>
+                            </div>
+                            <div className="text-right">
+                              <span className="font-black text-slate-900 dark:text-white block">
+                                {v.prixVente} DA
+                              </span>
+                              <span className="text-[10px] font-bold text-slate-500">
+                                Stock: {v.stock}
+                              </span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="py-12 flex items-center justify-center text-xs font-bold text-slate-400 dark:text-slate-500">
+                        Aucune donnée pour les variantes
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Footer */}
+              <div className="p-4 bg-slate-50 dark:bg-slate-900/60 border-t border-slate-100 dark:border-slate-700/80 flex items-center justify-end">
+                <button
+                  type="button"
+                  onClick={() => setStatsProduct(null)}
+                  className="px-6 py-2.5 rounded-2xl bg-slate-800 hover:bg-slate-900 text-white font-extrabold text-xs shadow-md transition-all cursor-pointer"
+                >
+                  Fermer
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* Floating Toast Notification (Matching Screenshot 2) */}
+      {toastMessage && (
+        <div className="fixed bottom-6 right-6 z-[9999] flex items-center gap-3 px-5 py-3.5 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 rounded-2xl shadow-2xl border border-slate-200/80 dark:border-slate-700 animate-in fade-in slide-in-from-bottom-5 duration-300">
+          <div className="w-8 h-8 rounded-full bg-blue-50 dark:bg-blue-950/60 flex items-center justify-center text-blue-600 dark:text-blue-400 shrink-0">
+            <Info className="w-4 h-4" />
+          </div>
+          <span className="text-xs sm:text-sm font-bold">{toastMessage}</span>
+          <button
+            type="button"
+            onClick={() => setToastMessage(null)}
+            className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 ml-2 cursor-pointer p-1"
+          >
+            <X className="w-4 h-4" />
+          </button>
         </div>
       )}
     </div>
