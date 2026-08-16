@@ -17,9 +17,9 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
       - name: Find and bump SW version
         run: |
-          SW_PATH=$(find . -name "sw.js" -not -path "./.git/*" | head -1)
+          SW_PATH="public/sw.js"
           echo "sw.js trouvé à: $SW_PATH"
-          if [ -z "$SW_PATH" ]; then echo "ERREUR: sw.js absent" && exit 1; fi
+          if [ ! -f "$SW_PATH" ]; then echo "ERREUR: sw.js non trouvé à $SW_PATH" && exit 1; fi
           TS=$(date +%Y%m%d%H%M%S)
           sed -i "s/const CACHE_VERSION = '[^']*'/const CACHE_VERSION = '$TS'/" "$SW_PATH"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
