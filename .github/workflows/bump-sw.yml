@@ -4,6 +4,7 @@ on:
     branches: [main]
     paths-ignore:
       - 'sw.js'
+      - '**/sw.js'
       - '.github/**'
 jobs:
   bump:
@@ -16,14 +17,18 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
       - name: Bump SW version
         run: |
+          SW_PATH=$(find . -name "sw.js" -not -path "./.github/*" | head -1)
+          if [ -z "$SW_PATH" ]; then
+            echo "sw.js introuvable dans le repo"
+            exit 1
+          fi
+          echo "Trouvé: $SW_PATH"
           TS=$(date +%Y%m%d%H%M%S)
-          sed -i "s/const CACHE_VERSION = '[^']*'/const CACHE_VERSION = '$TS'/" sw.js
+          sed -i "s/const CACHE_VERSION = '[^']*'/const CACHE_VERSION = '$TS'/" "$SW_PATH"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git config user.name "github-actions[bot]"
-          git add sw.js
+          git add "$SW_PATH"
           if ! git diff --cached --quiet; then
             git commit -m "chore: bump SW cache $TS"
             git push
-          else
-            echo "Aucun changement dans sw.js"
           fi
