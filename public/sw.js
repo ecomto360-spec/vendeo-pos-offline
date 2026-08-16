@@ -1,4 +1,4 @@
-const CACHE_NAME = 'vendeo-pos-cache-v2.5';
+const CACHE_VERSION = '20240101000000';
 const PRECACHE_ASSETS = [
   '/',
   '/index.html',
@@ -11,21 +11,19 @@ const PRECACHE_ASSETS = [
 self.addEventListener('install', (event) => {
   self.skipWaiting();
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => {
-      console.log('[SW] Pre-caching offline static assets');
+    caches.open(CACHE_VERSION).then((cache) => {
       return cache.addAll(PRECACHE_ASSETS);
     })
   );
 });
 
-// 2. Activate Event: Immediately purge ALL old caches and take control
+// 2. Activate Event: Delete all old caches not matching CACHE_VERSION & claim clients
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((cacheNames) => {
       return Promise.all(
         cacheNames.map((cache) => {
-          if (cache !== CACHE_NAME) {
-            console.log('[SW] Deleting old cache:', cache);
+          if (cache !== CACHE_VERSION) {
             return caches.delete(cache);
           }
         })
@@ -34,41 +32,48 @@ self.addEventListener('activate', (event) => {
   );
 });
 
-// 3. Fetch Event: Network-First for Navigation (HTML) & Stale-While-Revalidate for Assets
+// 3. Fetch Event: Network-First for index.html, .js, .css, and navigation requests
 self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET' || !event.request.url.startsWith('http')) {
     return;
   }
 
-  // Network-First for HTML/Navigation so Vercel updates appear instantly
-  if (event.request.mode === 'navigate' || event.request.headers.get('accept')?.includes('text/html')) {
+  const url = new URL(event.request.url);
+  const isNetworkFirst =
+    event.request.mode === 'navigate' ||
+    url.pathname === '/' ||
+    url.pathname.endsWith('.html') ||
+    url.pathname.endsWith('.js') ||
+    url.pathname.endsWith('.css') ||
+    event.request.headers.get('accept')?.includes('text/html');
+
+  if (isNetworkFirst) {
     event.respondWith(
       fetch(event.request)
         .then((networkResponse) => {
           if (networkResponse && networkResponse.status === 200) {
             const responseToCache = networkResponse.clone();
-            caches.open(CACHE_NAME).then((cache) => {
+            caches.open(CACHE_VERSION).then((cache) => {
               cache.put(event.request, responseToCache);
             });
           }
           return networkResponse;
         })
         .catch(() => {
-          // Offline fallback
           return caches.match(event.request).then((cached) => cached || caches.match('/index.html'));
         })
     );
     return;
   }
 
-  // Stale-While-Revalidate for other static assets
+  // Fallback for other assets (images, fonts, etc.)
   event.respondWith(
     caches.match(event.request).then((cachedResponse) => {
       const fetchPromise = fetch(event.request)
         .then((networkResponse) => {
           if (networkResponse && networkResponse.status === 200 && networkResponse.type === 'basic') {
             const responseToCache = networkResponse.clone();
-            caches.open(CACHE_NAME).then((cache) => {
+            caches.open(CACHE_VERSION).then((cache) => {
               cache.put(event.request, responseToCache);
             });
           }
