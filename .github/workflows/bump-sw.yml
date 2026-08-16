@@ -7,17 +7,15 @@ on:
 jobs:
   bump:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-      - name: Bump version timestamp
+      - name: Bump version
         run: |
           TS=$(date +%Y%m%d%H%M%S)
           sed -i "s/const CACHE_VERSION = '[^']*'/const CACHE_VERSION = '$TS'/" sw.js
-      - name: Commit
-        run: |
           git config user.email "bot@github.com"
           git config user.name "SW-Bump-Bot"
           git add sw.js
-          git diff --cached --quiet && echo "No change" || git commit -m "chore: bump SW cache version $TS" && git push
+          git diff --cached --quiet || git commit -m "chore: bump SW $TS" && git push
