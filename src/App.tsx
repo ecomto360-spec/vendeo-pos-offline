@@ -40,7 +40,7 @@ import {
   initialCashSessions,
 } from './mockData';
 
-import { Product, Sale, Expense, CashMovement, Customer, Supplier, AppSettings, BonCommande, ProformaInvoice, AppUser, PurchaseInvoice, Promotion, Pack, CashSession } from './types';
+import { Product, Sale, Expense, CashMovement, Customer, Supplier, AppSettings, BonCommande, ProformaInvoice, AppUser, PurchaseInvoice, Promotion, Pack, CashSession, ParametresTab } from './types';
 import { Keyboard, PlayCircle, Sparkles, X } from 'lucide-react';
 
 import { ShortcutsModal } from './components/ShortcutsModal';
@@ -48,7 +48,13 @@ import { getStoredItem, setStoredItem } from './lib/db';
 
 export function App() {
   const [currentView, setCurrentView] = useState<string>('parametres');
+  const [parametresTab, setParametresTab] = useState<ParametresTab>('generaux');
   const [theme, setTheme] = useState<'light' | 'dark'>('light');
+
+  const handleOpenActivationPage = () => {
+    setCurrentView('parametres');
+    setParametresTab('activation');
+  };
 
   // Initialization State
   const [isInitialized, setIsInitialized] = useState<boolean>(() => {
@@ -720,12 +726,17 @@ export function App() {
           onOpenShortcuts={() => setShowShortcutsModal(true)}
           onOpenVideos={() => setShowVideosModal(true)}
           onOpenOffer={() => setShowOfferModal(true)}
+          onOpenActivation={handleOpenActivationPage}
         />
 
         {/* Dynamic View Route */}
         <main className="flex-1 overflow-y-auto custom-scrollbar">
           {currentView === 'parametres' && (
-            <ParametresView settings={settings} onUpdateSettings={handleUpdateSettings} />
+            <ParametresView
+              settings={settings}
+              onUpdateSettings={handleUpdateSettings}
+              initialTab={parametresTab}
+            />
           )}
 
           {currentView === 'statistiques' && (
@@ -929,37 +940,37 @@ export function App() {
       {/* Special Offer Modal */}
       {showOfferModal && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-gradient-to-br from-teal-800 via-teal-900 to-slate-950 text-white rounded-3xl p-8 max-w-md w-full space-y-6 shadow-2xl border border-teal-500/30 relative">
+          <div className="bg-gradient-to-br from-blue-800 via-blue-900 to-slate-950 text-white rounded-3xl p-8 max-w-md w-full space-y-6 shadow-2xl border border-blue-500/30 relative">
             <button
               onClick={() => setShowOfferModal(false)}
-              className="absolute right-5 top-5 text-teal-300 hover:text-white"
+              className="absolute right-5 top-5 text-blue-300 hover:text-white"
             >
               <X className="w-5 h-5" />
             </button>
 
             <div className="space-y-2">
-              <span className="inline-flex items-center gap-1 px-3 py-1 bg-white/10 text-teal-200 rounded-full text-xs font-bold border border-white/20">
+              <span className="inline-flex items-center gap-1 px-3 py-1 bg-white/10 text-blue-200 rounded-full text-xs font-bold border border-white/20">
                 <Sparkles className="w-3.5 h-3.5 text-amber-300" />
-                OFFRE D'ACTIVATION
+                OFFRE D'ACTIVATION -40%
               </span>
               <h3 className="text-2xl font-black">Passez à la version complète</h3>
-              <p className="text-teal-200 text-xs leading-relaxed">
-                Profitez de la promotion de lancement à 12 000 DA à vie (sans frais mensuels ni abonnement).
+              <p className="text-blue-200 text-xs leading-relaxed">
+                Profitez de la promotion de lancement à 6 000 DA / an avec toutes les fonctionnalités et mises à jour incluses.
               </p>
             </div>
 
-            <div className="p-4 bg-teal-950/80 rounded-2xl border border-teal-500/30 flex justify-between items-center">
+            <div className="p-4 bg-blue-950/80 rounded-2xl border border-blue-500/30 flex justify-between items-center">
               <div>
-                <span className="text-[10px] font-bold text-teal-300 uppercase">Tarif Spécial</span>
-                <div className="text-2xl font-black">12 000 DA</div>
+                <span className="text-[10px] font-bold text-blue-300 uppercase">Tarif Spécial Annuel</span>
+                <div className="text-2xl font-black">6 000 DA / an</div>
               </div>
-              <span className="text-xs line-through text-teal-400 font-bold">15 000 DA</span>
+              <span className="text-xs line-through text-blue-400 font-bold">10 000 DA</span>
             </div>
 
             <button
               onClick={() => {
                 setShowOfferModal(false);
-                setCurrentView('parametres');
+                handleOpenActivationPage();
               }}
               className="w-full py-3.5 rounded-2xl bg-amber-500 hover:bg-amber-600 text-slate-950 font-black text-sm shadow-lg shadow-amber-500/30 transition-all"
             >

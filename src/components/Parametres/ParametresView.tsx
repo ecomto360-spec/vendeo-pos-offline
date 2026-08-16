@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   UserCheck, 
   SlidersHorizontal, 
@@ -29,12 +29,23 @@ import { SuperAdminLoginModal } from './SuperAdminLoginModal';
 interface ParametresViewProps {
   settings: AppSettings;
   onUpdateSettings: (newSettings: Partial<AppSettings>) => void;
+  initialTab?: ParametresTab;
 }
 
-export const ParametresView: React.FC<ParametresViewProps> = ({ settings, onUpdateSettings }) => {
-  const [activeTab, setActiveTab] = useState<ParametresTab>('generaux');
+export const ParametresView: React.FC<ParametresViewProps> = ({ 
+  settings, 
+  onUpdateSettings,
+  initialTab = 'generaux'
+}) => {
+  const [activeTab, setActiveTab] = useState<ParametresTab>(initialTab);
   const [isSuperAdmin, setIsSuperAdmin] = useState(isSuperAdminAuthenticated());
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
+
+  useEffect(() => {
+    if (initialTab) {
+      setActiveTab(initialTab);
+    }
+  }, [initialTab]);
 
   const handleLogoutSuperAdmin = () => {
     logoutSuperAdmin();

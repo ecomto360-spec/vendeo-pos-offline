@@ -63,8 +63,8 @@ export const ActivationSettings: React.FC<ActivationSettingsProps> = ({
   const [, setOfflineModalOpen] = useState(false);
 
   // Purchase Request Form State
-  const [storeName, setStoreName] = useState('فانديو ديجيتال سيرفيس');
-  const [phone, setPhone] = useState('055...');
+  const [storeName, setStoreName] = useState('');
+  const [phone, setPhone] = useState('');
   const [wilaya, setWilaya] = useState('');
   const [commune, setCommune] = useState('');
   const [purchaseSuccess, setPurchaseSuccess] = useState(false);
@@ -124,7 +124,18 @@ export const ActivationSettings: React.FC<ActivationSettingsProps> = ({
   const handleSendPurchaseRequest = (e: React.FormEvent) => {
     e.preventDefault();
     setPurchaseSuccess(true);
-    setTimeout(() => setPurchaseSuccess(false), 5000);
+
+    const message = `Bonjour Vendeo POS, je souhaite commander une clé d'activation officielle (Offre 6 000 DZD / an) :
+• Nom / Magasin : ${storeName || 'Non renseigné'}
+• Téléphone : ${phone || 'Non renseigné'}
+• Wilaya : ${wilaya || 'Non renseignée'}
+• Commune : ${commune || 'Non renseignée'}
+• HWID Appareil : ${hwid}`;
+
+    const whatsappUrl = `https://wa.me/213554252579?text=${encodeURIComponent(message)}`;
+    window.open(whatsappUrl, '_blank');
+
+    setTimeout(() => setPurchaseSuccess(false), 8000);
   };
 
   const handleOfflineFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
