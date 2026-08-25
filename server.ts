@@ -2,8 +2,8 @@ import express from 'express';
 import path from 'path';
 import dotenv from 'dotenv';
 import { createServer as createViteServer } from 'vite';
-import { getAuth } from './src/lib/auth';
-import { getNeonDb, schema } from './src/db';
+import { getAuth } from './src/lib/authSession';
+import { getNeonDb, schema } from './src/lib/db';
 import { eq } from 'drizzle-orm';
 import { toNodeHandler } from 'better-auth/node';
 
