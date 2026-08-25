@@ -1,4 +1,4 @@
-const CACHE_VERSION = '20260825191625';
+const CACHE_VERSION = '20260825193031';
 const PRECACHE_ASSETS = [
   '/',
   '/index.html',
