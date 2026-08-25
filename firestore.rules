@@ -1,0 +1,82 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Multi-tenant Store Licenses
+    match /licenses/{licenseId} {
+      allow read: if true;
+      allow write: if true;
+    }
+
+    // Tenant-isolated collections (Products, Sales, Customers, Suppliers, Expenses, etc.)
+    match /products/{productId} {
+      allow read, write: if true;
+    }
+
+    match /sales/{saleId} {
+      allow read, write: if true;
+    }
+
+    match /customers/{customerId} {
+      allow read, write: if true;
+    }
+
+    match /suppliers/{supplierId} {
+      allow read, write: if true;
+    }
+
+    match /expenses/{expenseId} {
+      allow read, write: if true;
+    }
+
+    match /settings/{settingId} {
+      allow read, write: if true;
+    }
+
+    match /categories/{categoryId} {
+      allow read, write: if true;
+    }
+
+    match /orders/{orderId} {
+      allow read, write: if true;
+    }
+
+    match /proformas/{proformaId} {
+      allow read, write: if true;
+    }
+
+    match /users/{userId} {
+      allow read, write: if true;
+    }
+
+    match /purchaseInvoices/{invoiceId} {
+      allow read, write: if true;
+    }
+
+    match /promotions/{promoId} {
+      allow read, write: if true;
+    }
+
+    match /packs/{packId} {
+      allow read, write: if true;
+    }
+
+    match /cashSessions/{sessionId} {
+      allow read, write: if true;
+    }
+
+    match /cashMovements/{movementId} {
+      allow read, write: if true;
+    }
+
+    // Global connection test collection
+    match /_connection_test/{docId} {
+      allow read, write: if true;
+    }
+
+    // Default fallback
+    match /{document=**} {
+      allow read, write: if true;
+    }
+  }
+}

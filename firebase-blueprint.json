@@ -1,0 +1,137 @@
+{
+  "entities": {
+    "License": {
+      "title": "License",
+      "description": "Multi-tenant SaaS store license key document with product and user quotas",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "storeId": { "type": "string" },
+        "planType": { "type": "string", "enum": ["FREE", "STANDARD", "PRO"] },
+        "maxProducts": { "type": "number" },
+        "maxUsers": { "type": "number" },
+        "activeDevices": { "type": "array", "items": { "type": "string" } },
+        "status": { "type": "string", "enum": ["ACTIVE", "SUSPENDED"] },
+        "key": { "type": "string" },
+        "storeName": { "type": "string" },
+        "active": { "type": "boolean" },
+        "currentUsersCount": { "type": "number" },
+        "expiresAt": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "plan": { "type": "string" }
+      },
+      "required": ["storeId", "planType", "maxProducts", "maxUsers", "activeDevices", "status"]
+    },
+    "Product": {
+      "title": "Product",
+      "description": "Store inventory product item with storeId tenant isolation",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "storeId": { "type": "string" },
+        "nom": { "type": "string" },
+        "codeBarre": { "type": "string" },
+        "categorie": { "type": "string" },
+        "prixAchat": { "type": "number" },
+        "prixVente": { "type": "number" },
+        "quantite": { "type": "number" },
+        "minStock": { "type": "number" }
+      },
+      "required": ["id", "nom", "prixVente", "quantite"]
+    },
+    "Sale": {
+      "title": "Sale",
+      "description": "Completed point of sale transaction record with storeId",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "storeId": { "type": "string" },
+        "date": { "type": "string" },
+        "clientNom": { "type": "string" },
+        "total": { "type": "number" },
+        "methodePaiement": { "type": "string" },
+        "statut": { "type": "string" }
+      },
+      "required": ["id", "date", "total", "statut"]
+    },
+    "Customer": {
+      "title": "Customer",
+      "description": "Customer contact and credit account details with storeId",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "storeId": { "type": "string" },
+        "nom": { "type": "string" },
+        "telephone": { "type": "string" },
+        "solde": { "type": "number" }
+      },
+      "required": ["id", "nom"]
+    },
+    "Supplier": {
+      "title": "Supplier",
+      "description": "Supplier contact and debts with storeId",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "storeId": { "type": "string" },
+        "nom": { "type": "string" },
+        "telephone": { "type": "string" },
+        "detteTotale": { "type": "number" }
+      }
+    },
+    "Expense": {
+      "title": "Expense",
+      "description": "Store expenses with storeId",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "storeId": { "type": "string" },
+        "description": { "type": "string" },
+        "montant": { "type": "number" },
+        "date": { "type": "string" },
+        "categorie": { "type": "string" }
+      }
+    },
+    "Settings": {
+      "title": "Settings",
+      "description": "Store configuration with storeId",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "storeId": { "type": "string" },
+        "nomMagasin": { "type": "string" },
+        "devise": { "type": "string" }
+      }
+    }
+  },
+  "firestore": {
+    "/licenses/{licenseId}": {
+      "schema": "License",
+      "description": "Tenant store licenses and device access control"
+    },
+    "/products/{productId}": {
+      "schema": "Product",
+      "description": "Store products catalogue collection"
+    },
+    "/sales/{saleId}": {
+      "schema": "Sale",
+      "description": "Sales and transaction records"
+    },
+    "/customers/{customerId}": {
+      "schema": "Customer",
+      "description": "Customer list and credit records"
+    },
+    "/suppliers/{supplierId}": {
+      "schema": "Supplier",
+      "description": "Suppliers collection"
+    },
+    "/expenses/{expenseId}": {
+      "schema": "Expense",
+      "description": "Expenses collection"
+    },
+    "/settings/{settingId}": {
+      "schema": "Settings",
+      "description": "Application settings and configuration"
+    }
+  }
+}
